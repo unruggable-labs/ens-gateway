@@ -1,0 +1,7 @@
+{
+	"type": "module",
+	"devDependencies": {
+		"@adraffy/blocksmith": "^0.0.12",
+		"ethers": "^6.11.1"
+	}
+}
