@@ -2,10 +2,16 @@ import {ethers} from 'ethers';
 import {serve, EZCCIP} from '@resolverworks/ezccip';
 export {serve};
 
+/*
+// https://github.com/ethers-io/ethers.js/pull/4689
 const CCIP_ABI = new ethers.Interface([
-	'function prove(address target, bytes32 slot) returns (uint256 outputIndex, uint256 blockNumber, bytes32 blockRoot, bytes32 blockHash, bytes32 passerRoot, bytes accountProof, bytes[][] slotProof)'
+	`function prove(address target, uint256 slot) returns (
+		uint256 outputIndex, 
+		tuple(bytes32 version, bytes32 stateRoot, bytes32 messagePasserStorageRoot, bytes32 latestBlockhash) outputRootProof,
+		tuple(bytes[] accountWitness, bytes[][] storageWitnesses) stateProof
+	)`
 ]);
-
+*/
 
 export class SingleSlotProver {
 	static forBaseMainnet({provider1, provider2}) {
@@ -31,7 +37,11 @@ export class SingleSlotProver {
 	}
 	get ezccip() {
 		let ezccip = new EZCCIP();
-		ezccip.register(CCIP_ABI, async ([target, slot]) => this.prove(target, slot));
+		ezccip.register(`function prove(address target, uint256 slot) returns (
+			uint256 outputIndex, 
+			tuple(bytes32 version, bytes32 stateRoot, bytes32 messagePasserStorageRoot, bytes32 latestBlockhash) outputRootProof,
+			tuple(bytes[] accountWitness, bytes[][] storageWitnesses) stateProof
+		)`, ([target, slot]) => this.prove(target, slot));
 		return ezccip;
 	}
 	async lastOutput() {
@@ -39,20 +49,30 @@ export class SingleSlotProver {
 		let {outputRoot, block} = await this.L2OutputOracle.getL2Output(index);
 		block = '0x' + block.toString(16);
 		let {storageHash: passerRoot} = await this.provider2.send('eth_getProof', [this.L2ToL1MessagePasser, [], block]);
-		let {stateRoot: blockRoot, hash: blockHash} = await this.provider2.getBlock(block);
-		return {index, block, outputRoot, passerRoot, blockRoot, blockHash};
+		let {stateRoot, hash: blockHash} = await this.provider2.getBlock(block);
+		return {index, block, outputRoot, passerRoot, stateRoot, blockHash};
 	}
 	async prove(target, slot) {
 		let output = await this.lastOutput();
 		let proof = await this.provider2.send('eth_getProof', [target, [ethers.toBeHex(slot, 32)], output.block]);
 		return [
 			output.index,
-			output.block,
-			output.blockRoot,
-			output.blockHash,
-			output.passerRoot,
-			proof.accountProof,
-			proof.storageProof.map(x => x.proof),
+			{
+				// struct OutputRootProof {
+				// 	bytes32 version;
+				// 	bytes32 stateRoot;
+				// 	bytes32 messagePasserStorageRoot;
+				// 	bytes32 latestBlockhash;
+				// }
+				version: ethers.ZeroHash,
+				stateRoot: output.stateRoot,
+				messagePasserStorageRoot: output.passerRoot,
+				latestBlockhash: output.blockHash
+			},
+			{
+				accountWitness: proof.accountProof,
+				storageWitnesses: proof.storageProof.map(x => x.proof),
+			}
 		];
 	}
 }
