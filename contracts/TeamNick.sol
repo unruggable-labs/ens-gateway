@@ -38,7 +38,7 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 	function _resolveBasename(bytes calldata data) internal pure returns (bytes memory) {
 		bytes4 selector = bytes4(data);
 		if (selector == IAddrResolver.addr.selector) {
-			return address(0);
+			return abi.encode(address(0));
 		} else if (selector == IAddressResolver.addr.selector) {
 			(, uint256 cty) = abi.decode(data[4:], (bytes32, uint256));
 			if (cty == 0x80002105) { // base (8453) {

@@ -17,3 +17,4 @@ console.log(await tester.supply({enableCcipRead: true}));
 console.log(await tester.name({enableCcipRead: true}));
 
 foundry.shutdown();
+ccip.http.close();

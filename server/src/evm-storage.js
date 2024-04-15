@@ -15,7 +15,7 @@ async function getValueFromPath(getStorage, command, constants, requests) {
 	return {
 		slots: [slot],
 		isDynamic,
-		value: memoize(async () => ethers.zeroPadValue(await getStorage(slot), 32)),
+		value: getStorage(slot).then(v => ethers.zeroPadValue(v, 32))
 	};
 }
 
@@ -35,9 +35,7 @@ async function computeFirstSlot(command, constants, requests) {
 				continue;
 			}
 			case 1: {
-				let req = await requests[operand];
-				console.log(req);
-				slot = BigInt(ethers.solidityPackedKeccak256(['bytes', 'uint256'], [await req.value(), slot]));
+				slot = BigInt(ethers.solidityPackedKeccak256(['bytes', 'uint256'], [await requests[operand].then(x => x.value), slot]));
 				continue;
 			}
 			case 2: {
@@ -61,7 +59,9 @@ async function getDynamicValue(getStorage, slot) {
 		return {
 			slots: [slot, ...slotNumbers],
 			isDynamic: true,
-			value: memoize(async () => ethers.dataSlice(ethers.concat(await Promise.all(slotNumbers.map(getStorage))), 0, len)),
+			value: Promise.all(slotNumbers.map(getStorage)).then(v => {
+				return ethers.dataSlice(ethers.concat(v), 0, len);
+			}),
 		};
 	} else {
 		// Short value: least significant byte is `length * 2`, other bytes are data.
@@ -69,16 +69,7 @@ async function getDynamicValue(getStorage, slot) {
 		return {
 			slots: [slot],
 			isDynamic: true,
-			value: () => Promise.resolve(ethers.dataSlice(firstValue, 0, len)),
+			value: Promise.resolve(ethers.dataSlice(firstValue, 0, len)),
 		};
 	}
 }
-
-function memoize(fn) {
-	let promise;
-	return () => {
-		if (!promise) promise = fn();
-		return promise;
-	};
-}
-
