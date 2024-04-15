@@ -1,7 +1,9 @@
 import {Foundry} from '@adraffy/blocksmith';
 import {serve, SingleSlotProver} from '../server/src/SingleSlotProver.js';
 
-let foundry = await Foundry.launch({fork: 'https://cloudflare-eth.com'});
+let foundry = await Foundry.launch({
+	fork: 'https://cloudflare-eth.com', 
+});
 
 let ssp = SingleSlotProver.forBaseMainnet({
 	provider1: foundry.provider,

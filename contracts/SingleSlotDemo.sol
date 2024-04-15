@@ -10,7 +10,7 @@ import {Types} from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
 //import {Hashing} from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
 
 import {Hashing} from "./OPHacks/Hashing.sol";
-import {SecureMerkleTrie} from "./OPHacks/SecureMerkleTrie.sol";
+import {SecureMerkleTrie} from "./evm-verifier/SecureMerkleTrie.sol";
 
 // https://eips.ethereum.org/EIPS/eip-3668
 error OffchainLookup(address from, string[] urls, bytes request, bytes4 callback, bytes carry);
