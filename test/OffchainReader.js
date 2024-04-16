@@ -24,13 +24,18 @@ let contract = await foundry.deploy({sol: `
 
 let ezccip = new EZCCIP();
 ezccip.register('chonk() returns (uint256)', () => [EXPECT]);
-let ccip_raw = await serve(ezccip, {protocol: 'raw', log: false});
-let ccip_tor = await serve(ezccip, {protocol: 'tor', log: false});
+let ccip_ok = await serve(ezccip, {protocol: 'raw', log: false});
+let ccip_signed = await serve(ezccip, {protocol: 'tor', log: false});
+
+let ezccip_err = new EZCCIP();
+ezccip_err.register('chonk() returns (uint256)', () => { throw new Error('wtf'); });
+let ccip_err = await serve(ezccip_err, {protocol: 'raw', log: false});
 
 const urls = [
 	'https://ethereum.org/', // not a ccip server
-	ccip_tor.endpoint,       // returns signed response
-	ccip_raw.endpoint        // returns expected response
+	ccip_signed.endpoint,    // wrong protocol
+	ccip_err.endpoint,       // throws
+	ccip_ok.endpoint         // correct
 ];
 
 const stack = [];
@@ -48,5 +53,6 @@ for (let i = 0; i < 10; i++) {
 }
 
 foundry.shutdown();
-ccip_raw.http.close();
-ccip_tor.http.close();
+ccip_ok.http.close();
+ccip_err.http.close();
+ccip_signed.http.close();

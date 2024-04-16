@@ -6,7 +6,8 @@ src = "contracts"
 remappings = [
 	'@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/',
 	'@ensdomains/ens-contracts/=lib/ens-contracts/',
-	'@eth-optimism/=lib/optimism/packages/'
+	'@eth-optimism/=lib/optimism/packages/',
+	'@forge-std/=lib/forge-std/src/'
 ]
 
 #optimizer = true
