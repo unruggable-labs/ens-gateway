@@ -2,7 +2,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-library BatchGetStorage {
+abstract contract BatchGetStorage {
 	
 	error InvalidOp(uint256 op);
 	error InvalidConstant(bytes v);
@@ -17,7 +17,7 @@ library BatchGetStorage {
 				assembly { v.slot := slot }
 				m[i] = abi.encodePacked(slot, v);
 			} else {
-				bytes v = new bytes(64)
+				bytes memory v = new bytes(64);
 				assembly {
 					mstore(add(v, 32), slot)
 					mstore(add(v, 64), sload(slot))

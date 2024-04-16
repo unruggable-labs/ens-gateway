@@ -32,7 +32,10 @@ export class OPProver {
 		ezccip.register(`getStorageSlots(address target, bytes32[] commands, bytes[] constants) external view returns (bytes)`, async ([target, commands, constants]) => {
 			let output = await this.latest_output();
 			//console.log({target, commands, constants, output});
-			let getStorage = slot => this.provider2.getStorage(target, ethers.toBeHex(slot, 32), output.block);
+			let getStorage = slot => {
+				console.log('call');
+				return this.provider2.getStorage(target, ethers.toBeHex(slot, 32), output.block);
+			};
 			let slots = await expand_slots(getStorage, commands, constants);
 			let proof = await this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x, 32)), output.block]);
 			let witness = ethers.AbiCoder.defaultAbiCoder().encode(
