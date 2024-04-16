@@ -27,13 +27,18 @@ ezccip.register('chonk() returns (uint256)', () => [EXPECT]);
 let ccip_ok = await serve(ezccip, {protocol: 'raw', log: false});
 let ccip_signed = await serve(ezccip, {protocol: 'tor', log: false});
 
-let ezccip_err = new EZCCIP();
-ezccip_err.register('chonk() returns (uint256)', () => { throw new Error('wtf'); });
-let ccip_err = await serve(ezccip_err, {protocol: 'raw', log: false});
+let ezccip_wrong = new EZCCIP();
+ezccip_wrong.register('chonk() returns (uint256)', () => [~EXPECT]);
+let ccip_wrong = await serve(ezccip_wrong, {protocol: 'raw', log: false});
+
+let ezccip_throw = new EZCCIP();
+ezccip_throw.register('chonk() returns (uint256)', () => { throw new Error('wtf'); });
+let ccip_err = await serve(ezccip_throw, {protocol: 'raw', log: false});
 
 const urls = [
 	'https://ethereum.org/', // not a ccip server
 	ccip_signed.endpoint,    // wrong protocol
+	ccip_wrong.endpoint,     // wrong answer
 	ccip_err.endpoint,       // throws
 	ccip_ok.endpoint         // correct
 ];
@@ -49,10 +54,11 @@ for (let i = 0; i < 10; i++) {
 	foundry.provider.send('anvil_mine', ['0x1']);
 	stack.length = 0;
 	assert.equal(await contract.f(urls, {enableCcipRead: true}), EXPECT);
-	console.log(stack);
+	console.log(stack.length, stack.join());
 }
 
 foundry.shutdown();
 ccip_ok.http.close();
 ccip_err.http.close();
+ccip_wrong.http.close();
 ccip_signed.http.close();
