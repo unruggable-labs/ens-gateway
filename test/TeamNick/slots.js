@@ -27,5 +27,5 @@ console.log(await provider.getStorage(A, ethers.toBeHex(BigInt(ethers.keccak256(
 // SLOT_RECORDS[ID_RAFFY].avatar[0] = keccak(keccak(ID_RAFFY . SLOT_RECORDS) + 1)
 console.log(await provider.getStorage(A, ethers.keccak256(ethers.toBeHex(BigInt(ethers.keccak256(ethers.concat([ID_RAFFY, SLOT_RECORDS]))) + 1n, 32))));
 
-// SLOT_RECORDS[ID_RAFFY].avatar[0] = keccak(keccak(ID_RAFFY . SLOT_RECORDS) + 1) + 1
+// SLOT_RECORDS[ID_RAFFY].avatar[1] = keccak(keccak(ID_RAFFY . SLOT_RECORDS) + 1) + 1
 console.log(await provider.getStorage(A, ethers.toBeHex(BigInt(ethers.keccak256(ethers.toBeHex(BigInt(ethers.keccak256(ethers.concat([ID_RAFFY, SLOT_RECORDS]))) + 1n, 32))) + 1n, 32)));

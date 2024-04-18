@@ -93,7 +93,7 @@ contract TeamNick2WithVerifier is IERC165, IExtendedResolver, EVMFetchTarget, OP
 	}
 
 	function addrCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
-		return abi.encode(bytes20(values[0]));
+		return abi.encode(bytes32(values[0]));
 	}
 	function addressCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
 		return abi.encode(values[0][12:]);

@@ -10,4 +10,3 @@ let prover = OPGateway.forBaseMainnet({
 });
 
 let ccip = await serve(prover, {protocol: 'raw', port: 8018});
-

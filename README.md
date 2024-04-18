@@ -6,30 +6,45 @@
 1. `node test/TeamNick/server.js`
 	* edit: port, provider1, provider2
 
-### Contract
+### Contracts
 
 1. `foundryup`
 1. `npm i`
-1. `node test/TeamNick/resolver2combo.js`
-	* 3.8m gas &rarr; 100$ at 10gwei
+1. `node test/TeamNick/resolver2owned.js`
 
+
+Deploy [OwnedOPVerifier.sol](./contracts/evm-verifier2/OwnedOPVerifier.sol)
 ```
 forge create \
   --rpc-url https://cloudflare.eth \
-  --constructor-args [$HTTP_ENDPOINT] 0x56315b90c40730925ec5485cf004d835058518A0 1 \
-  --private-key $PRIVATE_KEY \
-  contracts/TeamNick2WithVerifier.sol:TeamNick2WithVerifier
+  --constructor-args 0x56315b90c40730925ec5485cf004d835058518A0 [$HTTP_ENDPOINT] 1 \
+  --interactive
+  contracts/evm-verifier2/OwnedOPVerifier.sol:OwnedOPVerifier
 
 forge verify-contract \
   --constructor-args $ABI_ENCODED_ARGS \
   --verifier etherscan \
   --etherscan-api-key $ETHERSCAN_KEY \
-  $DEPLOYMENT_ADDRESS \
+  $VERIFIER_ADDRESS \
   contracts/TeamNick2WithVerifier.sol:TeamNick2WithVerifier
-
-$HTTP_ENDPOINT = https://home.antistupid.com/base-evm-gateway/
-$PRIVATE_KEY = 0x...
-$ABI_ENCODED_ARGS = 0x... (get this from etherscan verify page)
-$ETHERSCAN_KEY = ABCD...
-$DEPLOYMENT_ADDRESS = 0x...
 ```
+
+Deploy [TeamNick2.sol](./contracts/TeamNick2.sol)
+```
+forge create \
+  --rpc-url https://cloudflare.eth \
+  --constructor-args $VERIFIER_ADDRESS \
+  --interactive
+  contracts/TeamNick2.sol:TeamNick2
+```
+
+* `$HTTP_ENDPOINT` = https://home.antistupid.com/base-evm-gateway/
+* `$ETHERSCAN_KEY` = ABCD...
+* `$VERIFIER_ADDRESS` = 0x...
+* `$ABI_ENCODED_ARGS` = get from etherscan verify contract page, or:
+	* [Deployment of 0x57c189b72a193122035d9024893e50b0bf763f64](https://sepolia.etherscan.io/tx/0xd7d5cad3f36200f882a178e58faf9c70186903743029786eaff9374f1016a254)
+	* Find "Input Data"
+	* Find "170033" near end, eg. `...0008[170033]0000...`
+	* $ABI_ENCODED_ARGS = `0x000000000000000000000000000000000000000000000000000000000000006000000000000000000000000056315b90c40730925ec5485cf004d835058518a0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002d68747470733a2f2f686f6d652e616e74697374757069642e636f6d2f626173652d65766d2d676174657761792f00000000000000000000000000000000000000`
+
+
