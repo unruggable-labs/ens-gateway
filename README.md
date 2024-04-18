@@ -14,7 +14,7 @@
 
 
 Deploy [OwnedOPVerifier.sol](./contracts/evm-verifier2/OwnedOPVerifier.sol)
-```
+```bash
 forge create \
   --rpc-url https://cloudflare.eth \
   --constructor-args 0x56315b90c40730925ec5485cf004d835058518A0 [$HTTP_ENDPOINT] 1 \
@@ -26,11 +26,11 @@ forge verify-contract \
   --verifier etherscan \
   --etherscan-api-key $ETHERSCAN_KEY \
   $VERIFIER_ADDRESS \
-  contracts/TeamNick2WithVerifier.sol:TeamNick2WithVerifier
+  contracts/evm-verifier2/OwnedOPVerifier.sol:OwnedOPVerifier
 ```
 
 Deploy [TeamNick2.sol](./contracts/TeamNick2.sol)
-```
+```bash
 forge create \
   --rpc-url https://cloudflare.eth \
   --constructor-args $VERIFIER_ADDRESS \
