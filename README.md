@@ -10,7 +10,7 @@
 
 1. `foundryup`
 1. `npm i`
-1. `node test/TeamNick/resolver2owned.js`
+1. `node test/TeamNick/resolver2-baseless-owned.js`
 
 Deploy [OwnedOPVerifier.sol](./contracts/evm-verifier2/OwnedOPVerifier.sol)
 ```bash
