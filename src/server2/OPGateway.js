@@ -6,6 +6,9 @@ const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 export class OPGateway extends EZCCIP {
 	static forBaseMainnet({provider1, provider2, expander}) {
 		// https://docs.base.org/docs/base-contracts
+		if (!provider1) {
+			provider1 = new ethers.CloudflareProvider();
+		}
 		if (!provider2) {
 			provider2 = new ethers.JsonRpcProvider('https://mainnet.base.org', 8453, {staticNetwork: true});
 		}
