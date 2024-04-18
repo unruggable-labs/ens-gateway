@@ -4,7 +4,7 @@
 
 1. `npm i`
 1. `node test/TeamNick/server.js`
-	* edit: port &rarr; 8018
+	* edit: port, provider1, provider2
 
 ### Contract
 
@@ -16,7 +16,7 @@
 ```
 forge create \
   --rpc-url https://cloudflare.eth \
-  --constructor-args [https://...] 0x56315b90c40730925ec5485cf004d835058518A0 1 \
+  --constructor-args [$HTTP_ENDPOINT] 0x56315b90c40730925ec5485cf004d835058518A0 1 \
   --private-key $PRIVATE_KEY \
   contracts/TeamNick2WithVerifier.sol:TeamNick2WithVerifier
 
@@ -27,5 +27,9 @@ forge verify-contract \
   $DEPLOYMENT_ADDRESS \
   contracts/TeamNick2WithVerifier.sol:TeamNick2WithVerifier
 
-$ABI_ENCODED_ARGS = get this from etherscan verify page
+$HTTP_ENDPOINT = https://home.antistupid.com/base-evm-gateway/
+$PRIVATE_KEY = 0x...
+$ABI_ENCODED_ARGS = 0x... (get this from etherscan verify page)
+$ETHERSCAN_KEY = ABCD...
+$DEPLOYMENT_ADDRESS = 0x...
 ```
