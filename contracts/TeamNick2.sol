@@ -3,20 +3,20 @@
 pragma solidity ^0.8.23;
 
 // interfaces
-import {IERC165} from '@openzeppelin/contracts/utils/introspection/IERC165.sol';
-import {IEVMVerifier} from './evm-verifier2/IEVMVerifier.sol';
-import {IExtendedResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IExtendedResolver.sol';
-import {IAddrResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddrResolver.sol';
-import {IAddressResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddressResolver.sol';
-import {ITextResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/ITextResolver.sol';
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IEVMVerifier} from "./evm-verifier2/IEVMVerifier.sol";
+import {IExtendedResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/IExtendedResolver.sol";
+import {IAddrResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddrResolver.sol";
+import {IAddressResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddressResolver.sol";
+import {ITextResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/ITextResolver.sol";
 
 // libraries
-import {BytesUtils} from '@ensdomains/ens-contracts/contracts/wrapper/BytesUtils.sol';
-import {Strings} from '@openzeppelin/contracts/utils/Strings.sol';
-import {EVMFetcher} from './evm-verifier2/EVMFetcher.sol';
+import {BytesUtils} from "@ensdomains/ens-contracts/contracts/wrapper/BytesUtils.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {EVMFetcher} from "./evm-verifier2/EVMFetcher.sol";
 
 // bases
-import {EVMFetchTarget} from './evm-verifier2/EVMFetchTarget.sol';
+import {EVMFetchTarget} from "./evm-verifier2/EVMFetchTarget.sol";
 
 contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 	using BytesUtils for bytes;
@@ -54,7 +54,7 @@ contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 			bytes32 keyhash = keccak256(bytes(key));
 			if (keyhash == 0xb68b5f5089998f2978a1dcc681e8ef27962b90d5c26c4c0b9c1945814ffa5ef0) {
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=url&escape=1&encoding=utf8
-				return abi.encode('https://teamnick.xyz');
+				return abi.encode("https://teamnick.xyz");
 			} else if (keyhash == 0x1596dc38e2ac5a6ddc5e019af4adcc1e017a04f510d57e69d6879d5d2996bb8e) {
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=description&escape=1&encoding=utf8
 				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_SUPPLY).fetch(this.descriptionCallback.selector, '');
@@ -104,7 +104,7 @@ contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 		return abi.encode(values[0]);
 	}
 	function descriptionCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
-		return abi.encode(string.concat(Strings.toString(uint256(bytes32(values[0]))), ' names registered'));
+		return abi.encode(string.concat(Strings.toString(uint256(bytes32(values[0]))), " names registered"));
 	}
 	
 } 

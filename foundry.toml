@@ -13,5 +13,5 @@ remappings = [
 #optimizer = true
 #optimizer_runs = 1200
 
-extra_output = ['storageLayout']
+#extra_output = ['storageLayout']
 

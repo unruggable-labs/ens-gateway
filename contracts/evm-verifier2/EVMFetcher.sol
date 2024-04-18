@@ -1,9 +1,9 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { IEVMVerifier } from './IEVMVerifier.sol';
-import { EVMFetchTarget } from './EVMFetchTarget.sol';
-import { Address } from '@openzeppelin/contracts/utils/Address.sol';
+import { IEVMVerifier } from "./IEVMVerifier.sol";
+import { EVMFetchTarget } from "./EVMFetchTarget.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 interface IEVMGateway {
     function getStorageSlots(bytes memory context, address addr, bytes32[] memory commands, bytes[] memory constants) external pure returns (bytes memory witness);

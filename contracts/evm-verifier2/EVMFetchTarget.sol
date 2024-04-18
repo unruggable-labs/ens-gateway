@@ -1,8 +1,8 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { IEVMVerifier } from './IEVMVerifier.sol';
-import { Address } from '@openzeppelin/contracts/utils/Address.sol';
+import { IEVMVerifier } from "./IEVMVerifier.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @dev Callback implementation for users of `EVMFetcher`. If you use `EVMFetcher`, your contract must
