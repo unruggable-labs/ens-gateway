@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 
 // interfaces
 import {IERC165} from '@openzeppelin/contracts/utils/introspection/IERC165.sol';
-import {IEVMVerifier} from './evm-verifier/IEVMVerifier.sol';
+import {IEVMVerifier} from './evm-verifier2/IEVMVerifier.sol';
 import {IExtendedResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IExtendedResolver.sol';
 import {IAddrResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddrResolver.sol';
 import {IAddressResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddressResolver.sol';
@@ -13,16 +13,15 @@ import {ITextResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profi
 // libraries
 import {BytesUtils} from '@ensdomains/ens-contracts/contracts/wrapper/BytesUtils.sol';
 import {Strings} from '@openzeppelin/contracts/utils/Strings.sol';
-import {EVMFetcher} from './evm-verifier/EVMFetcher.sol';
+import {EVMFetcher} from './evm-verifier2/EVMFetcher.sol';
 
 // bases
-import {EVMFetchTarget} from './evm-verifier/EVMFetchTarget.sol';
+import {EVMFetchTarget} from './evm-verifier2/EVMFetchTarget.sol';
+import {IL2OutputOracle, OPVerifier} from './evm-verifier2/OPVerifier.sol';
 
-contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
+contract TeamNick2WithVerifier is IERC165, IExtendedResolver, EVMFetchTarget, OPVerifier {
 	using BytesUtils for bytes;
 	using EVMFetcher for EVMFetcher.EVMFetchRequest;
-
-	IEVMVerifier immutable verifier;
 
 	uint256 constant SLOT_RECORDS = 7;
 	uint256 constant SLOT_SUPPLY = 8;
@@ -30,8 +29,7 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 	address constant TEAMNICK_ADDRESS = 0x7C6EfCb602BC88794390A0d74c75ad2f1249A17f;
 	bytes32 constant TEAMNICK_ETH_NODE = 0xc75c458f9666e600bdc5c065ba982b95e6faad16c4b612ca7ee29e58449b33d0;
 
-	constructor(IEVMVerifier _verifier) {
-		verifier = _verifier;
+	constructor(string[] memory _urls, IL2OutputOracle _oracle, uint256 _delay) OPVerifier(_urls, _oracle, _delay) {
 	}
 
 	function supportsInterface(bytes4 x) external pure returns (bool) {
@@ -57,7 +55,7 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 				return abi.encode('https://teamnick.xyz');
 			} else if (keyhash == 0x1596dc38e2ac5a6ddc5e019af4adcc1e017a04f510d57e69d6879d5d2996bb8e) {
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=description&escape=1&encoding=utf8
-				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_SUPPLY).fetch(this.descriptionCallback.selector, '');
+				EVMFetcher.newFetchRequest(this, TEAMNICK_ADDRESS).getStatic(SLOT_SUPPLY).fetch(this.descriptionCallback.selector, '');
 			} else {
 				return abi.encode('');
 			}
@@ -72,11 +70,11 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 		uint256 token = dnsname.namehash(pos) == TEAMNICK_ETH_NODE ? uint256(label) : 0;
 		bytes4 selector = bytes4(data);
 		if (selector == IAddrResolver.addr.selector) {
-			EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_RECORDS).element(token).fetch(this.addrCallback.selector, '');
+			EVMFetcher.newFetchRequest(this, TEAMNICK_ADDRESS).getStatic(SLOT_RECORDS).element(token).fetch(this.addrCallback.selector, '');
 		} else if (selector == IAddressResolver.addr.selector) {
 			(, uint256 cty) = abi.decode(data[4:], (bytes32, uint256));
 			if (cty == 60) {
-				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_RECORDS).element(token).fetch(this.addressCallback.selector, '');
+				EVMFetcher.newFetchRequest(this, TEAMNICK_ADDRESS).getStatic(SLOT_RECORDS).element(token).fetch(this.addressCallback.selector, '');
 			} else {
 				return abi.encode('');
 			}
@@ -87,7 +85,7 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 				return abi.encode(dnsname[1:pos]);
 			} else if (keyhash == 0xd1f86c93d831119ad98fe983e643a7431e4ac992e3ead6e3007f4dd1adf66343) { 
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=avatar&escape=1&encoding=utf8
-				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getDynamic(SLOT_RECORDS).element(token).add(1).fetch(this.textCallback.selector, '');
+				EVMFetcher.newFetchRequest(this, TEAMNICK_ADDRESS).getDynamic(SLOT_RECORDS).element(token).add(1).fetch(this.textCallback.selector, '');
 			} else {
 				return abi.encode('');
 			}
@@ -95,7 +93,7 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 	}
 
 	function addrCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
-		return abi.encode(bytes32(values[0]));
+		return abi.encode(bytes20(values[0]));
 	}
 	function addressCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
 		return abi.encode(values[0][12:]);

@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 
 // interfaces
 import {IERC165} from '@openzeppelin/contracts/utils/introspection/IERC165.sol';
-import {IEVMVerifier} from './evm-verifier/IEVMVerifier.sol';
+import {IEVMVerifier} from './evm-verifier2/IEVMVerifier.sol';
 import {IExtendedResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IExtendedResolver.sol';
 import {IAddrResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddrResolver.sol';
 import {IAddressResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddressResolver.sol';
@@ -13,12 +13,12 @@ import {ITextResolver} from '@ensdomains/ens-contracts/contracts/resolvers/profi
 // libraries
 import {BytesUtils} from '@ensdomains/ens-contracts/contracts/wrapper/BytesUtils.sol';
 import {Strings} from '@openzeppelin/contracts/utils/Strings.sol';
-import {EVMFetcher} from './evm-verifier/EVMFetcher.sol';
+import {EVMFetcher} from './evm-verifier2/EVMFetcher.sol';
 
 // bases
-import {EVMFetchTarget} from './evm-verifier/EVMFetchTarget.sol';
+import {EVMFetchTarget} from './evm-verifier2/EVMFetchTarget.sol';
 
-contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
+contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 	using BytesUtils for bytes;
 	using EVMFetcher for EVMFetcher.EVMFetchRequest;
 
@@ -95,7 +95,7 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 	}
 
 	function addrCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
-		return abi.encode(bytes32(values[0]));
+		return abi.encode(bytes20(values[0]));
 	}
 	function addressCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
 		return abi.encode(values[0][12:]);
@@ -106,5 +106,5 @@ contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 	function descriptionCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {
 		return abi.encode(string.concat(Strings.toString(uint256(bytes32(values[0]))), ' names registered'));
 	}
-
+	
 } 

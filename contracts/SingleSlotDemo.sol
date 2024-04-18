@@ -7,10 +7,12 @@ import {IExtendedResolver} from "@ensdomains/ens-contracts/contracts/resolvers/p
 
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {Types} from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
-//import {Hashing} from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
 
-import {Hashing} from "./OPHacks/Hashing.sol";
-import {SecureMerkleTrie} from "./evm-verifier/SecureMerkleTrie.sol";
+//import {Hashing} from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
+import {Hashing} from "./forge-import-bug/Hashing.sol";
+
+//import {SecureMerkleTrie} from "@eth-optimism/contracts-bedrock/src/libraries/trie/SecureMerkleTrie.sol";
+import {SecureMerkleTrie} from "./trie-with-nonexistance/SecureMerkleTrie.sol";
 
 // https://eips.ethereum.org/EIPS/eip-3668
 error OffchainLookup(address from, string[] urls, bytes request, bytes4 callback, bytes carry);

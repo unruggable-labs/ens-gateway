@@ -1,13 +1,13 @@
 [profile.default]
 src = "contracts"
+
 #out = "out"
 #libs = ["lib"]
 
 remappings = [
 	'@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/',
 	'@ensdomains/ens-contracts/=lib/ens-contracts/',
-	'@eth-optimism/=lib/optimism/packages/',
-	'@forge-std/=lib/forge-std/src/'
+	'@eth-optimism/=lib/optimism/packages/'
 ]
 
 #optimizer = true

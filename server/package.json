@@ -1,7 +1,0 @@
-{
-	"type": "module",
-	"dependencies": {
-		"@resolverworks/ezccip": "^0.0.9",
-		"ethers": "^6.11.1"
-	}
-}
