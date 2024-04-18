@@ -12,7 +12,6 @@
 1. `npm i`
 1. `node test/TeamNick/resolver2owned.js`
 
-
 Deploy [OwnedOPVerifier.sol](./contracts/evm-verifier2/OwnedOPVerifier.sol)
 ```bash
 forge create \
@@ -29,13 +28,13 @@ forge verify-contract \
   contracts/evm-verifier2/OwnedOPVerifier.sol:OwnedOPVerifier
 ```
 
-Deploy [TeamNick2.sol](./contracts/TeamNick2.sol)
+Deploy [TeamNick2Baseless.sol](./contracts/TeamNick2Baseless.sol)
 ```bash
 forge create \
   --rpc-url https://cloudflare.eth \
   --constructor-args $VERIFIER_ADDRESS \
   --interactive
-  contracts/TeamNick2.sol:TeamNick2
+  contracts/TeamNick2Baseless.sol:TeamNick2Baseless
 ```
 
 * `$HTTP_ENDPOINT` = https://home.antistupid.com/base-evm-gateway/
