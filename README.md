@@ -15,7 +15,7 @@
 Deploy [OwnedOPVerifier.sol](./contracts/evm-verifier2/OwnedOPVerifier.sol)
 ```bash
 forge create \
-  --rpc-url https://cloudflare.eth \
+  --rpc-url https://cloudflare-eth.com \
   --constructor-args 0x56315b90c40730925ec5485cf004d835058518A0 [$HTTP_ENDPOINT] 1 \
   --interactive
   contracts/evm-verifier2/OwnedOPVerifier.sol:OwnedOPVerifier
@@ -31,7 +31,7 @@ forge verify-contract \
 Deploy [TeamNick2Baseless.sol](./contracts/TeamNick2Baseless.sol)
 ```bash
 forge create \
-  --rpc-url https://cloudflare.eth \
+  --rpc-url https://cloudflare-eth.com \
   --constructor-args $VERIFIER_ADDRESS \
   --interactive
   contracts/TeamNick2Baseless.sol:TeamNick2Baseless
