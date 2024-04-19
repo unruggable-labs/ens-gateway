@@ -10,8 +10,7 @@ remappings = [
 	'@eth-optimism/=lib/optimism/packages/'
 ]
 
-#optimizer = true
-#optimizer_runs = 1200
+optimizer = true
+optimizer_runs = 1000
 
 #extra_output = ['storageLayout']
-
