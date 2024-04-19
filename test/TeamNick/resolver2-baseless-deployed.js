@@ -1,17 +1,7 @@
 import {Foundry, Resolver, Node} from '@adraffy/blocksmith';
-import {serve} from '@resolverworks/ezccip';
-import {OPGateway} from '../../src/server2/OPGateway.js';
-import {expand_slots} from '../../src/evm-storage.js';
 import {ethers} from 'ethers';
 
 let foundry = await Foundry.launch({fork: 'https://cloudflare-eth.com'});
-
-let prover = OPGateway.forBaseMainnet({
-	provider1: foundry.provider,
-	expander: expand_slots
-});
-
-let ccip = await serve(prover, {protocol: 'raw'});
 
 let root = Node.root();
 let ens = await foundry.deploy({import: '@ensdomains/ens-contracts/contracts/registry/ENSRegistry.sol'});
@@ -24,11 +14,9 @@ Object.assign(ens, {
 	}
 });
 
-let verifier = await foundry.deploy({file: 'evm-verifier2/OwnedOPVerifier', args: [prover.L2OutputOracle, [], 0]});
+const L1_VERIFIER = '0x...';
 
-await foundry.confirm(verifier.setGatewayConfig([ccip.endpoint], 1));
-
-let resolver = await foundry.deploy({file: 'TeamNick2Baseless', args: [ens, verifier]});
+let resolver = await foundry.deploy({file: 'TeamNick2Baseless', args: [ens, L1_VERIFIER]});
 
 let eth = await ens.$register(root.create('eth'));
 let basename = await ens.$register(eth.create('teamchonk'), {resolver});
@@ -58,4 +46,3 @@ console.log(await get_resolver(basename).profile([
 ]));
 
 foundry.shutdown();
-ccip.http.close();
