@@ -14,7 +14,7 @@ Object.assign(ens, {
 	}
 });
 
-const L1_VERIFIER = '0x...';
+const L1_VERIFIER = '0xEC2244b547BD782FC7DeefC6d45E0B3a3cbD488d';
 
 let resolver = await foundry.deploy({file: 'TeamNick2Baseless', args: [ens, L1_VERIFIER]});
 
