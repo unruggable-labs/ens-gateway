@@ -13,3 +13,6 @@
 [submodule "lib/nitro-contracts"]
 	path = lib/nitro-contracts
 	url = https://github.com/offchainlabs/nitro-contracts
+[submodule "lib/buffer"]
+	path = lib/buffer
+	url = https://github.com/ensdomains/buffer
