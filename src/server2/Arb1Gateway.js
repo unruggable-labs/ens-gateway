@@ -1,5 +1,6 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
+import {SmartCache} from '../SmartCache.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
@@ -68,32 +69,25 @@ export class Arb1Gateway extends EZCCIP {
 				uint256 inboxMaxCount
 			)`,
 		], provider1);
-		this.cache = new Map();
-		this.register(`getStorageSlots(bytes context, address target, bytes32[] commands, bytes[] constants) external view returns (bytes)`, async ([context, target, commands, constants]) => {
-			let cached = await this.cached(BigInt(context));
-			let slots = await expander(this.provider2, cached.block, target, commands, constants);
-			let proof = await this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x, 32)), cached.block]);
-			let witness = ABI_CODER.encode(
-				[
-					'tuple(bytes32 version, bytes32 sendRoot, uint64 index, bytes rlpEncodedBlock)',
-					'tuple(bytes[] stateTrieWitness, bytes[][] storageProofs)',
-				],
-				[
-					{
-						version: ethers.ZeroHash,
-						sendRoot: cached.sendRoot,
-						index: cached.nodeIndex,
-						rlpEncodedBlock: cached.rlpEncodedBlock
-					},
-					proof,
-				]
-			);
-			return [witness];
+		this.cache = new SmartCache();
+		this.register(`getStorageSlots(bytes context, address target, bytes32[] commands, bytes[] constants) external view returns (bytes)`, async ([node, target, commands, constants], context, history) => {	
+			let hash = ethers.keccak256(context.calldata);
+			history.show = [hash];
+			return this.cache.get(hash, async () => {
+				let cached = await this.cache.get(BigInt(node), x => this.fetch_node(x), 60000 * 60);
+				let slots = await expander(this.provider2, cached.block, target, commands, constants);
+				let proof = await this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x, 32)), cached.block]);
+				let witness = ABI_CODER.encode(
+					['bytes32', 'bytes', 'tuple(bytes[], bytes[][])'],
+					[cached.sendRoot, cached.rlpEncodedBlock, [proof.accountProof, proof.storageProof.map(x => x.proof)]]
+				);
+				return ABI_CODER.encode(['bytes'], [witness]);
+			});
 		});
 	}
-	async fetch(index) {
-		let events = await this.L2Rollup.queryFilter(this.L2Rollup.filters.NodeCreated(index));
-		if (events.length != 1) throw new Error(`unknown node: ${index}`);
+	async fetch_node(node) {
+		let events = await this.L2Rollup.queryFilter(this.L2Rollup.filters.NodeCreated(node));
+		if (events.length != 1) throw new Error(`unknown node: ${node}`);
 		let [blockHash, sendRoot] = events[0].args[4][1][0][0]; //events[0].args.afterState.globalState.bytes32Vals;
 		let block = await this.provider2.send('eth_getBlockByHash', [blockHash, false]);
 		let rlpEncodedBlock = ethers.encodeRlp([
@@ -115,18 +109,11 @@ export class Arb1Gateway extends EZCCIP {
 			ethers.toBeHex(block.baseFeePerGas)
 		]);
 		return {
-			rlpEncodedBlock,
+			node,
+			block: block.number,
+			blockHash,
 			sendRoot,
-			index,
-			block: block.number
+			rlpEncodedBlock,
 		};
-	}
-	async cached(index) {
-		let output = this.cache.get(index);
-		if (!output) {
-			output = await this.fetch(index);
-			this.cache.set(index, output);
-		}
-		return output;
 	}
 }

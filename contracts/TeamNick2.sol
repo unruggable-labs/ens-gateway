@@ -46,8 +46,6 @@ contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 			(, uint256 cty) = abi.decode(data[4:], (bytes32, uint256));
 			if (cty == 0x80002105) { // base (8453) {
 				return abi.encode(abi.encodePacked(TEAMNICK_ADDRESS));
-			} else {
-				return abi.encode('');
 			}
 		} else if (selector == ITextResolver.text.selector) {
 			(, string memory key) = abi.decode(data[4:], (bytes32, string));
@@ -58,10 +56,9 @@ contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 			} else if (keyhash == 0x1596dc38e2ac5a6ddc5e019af4adcc1e017a04f510d57e69d6879d5d2996bb8e) {
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=description&escape=1&encoding=utf8
 				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_SUPPLY).fetch(this.descriptionCallback.selector, '');
-			} else {
-				return abi.encode('');
 			}
 		}
+		return new bytes(64);
 	}
 
 	function resolve(bytes calldata dnsname, bytes calldata data) external view returns (bytes memory) {
@@ -77,8 +74,6 @@ contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 			(, uint256 cty) = abi.decode(data[4:], (bytes32, uint256));
 			if (cty == 60) {
 				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_RECORDS).element(token).fetch(this.addressCallback.selector, '');
-			} else {
-				return abi.encode('');
 			}
 		} else if (selector == ITextResolver.text.selector) {
 			(, string memory key) = abi.decode(data[4:], (bytes32, string));
@@ -88,10 +83,9 @@ contract TeamNick2 is IERC165, IExtendedResolver, EVMFetchTarget {
 			} else if (keyhash == 0xd1f86c93d831119ad98fe983e643a7431e4ac992e3ead6e3007f4dd1adf66343) { 
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=avatar&escape=1&encoding=utf8
 				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getDynamic(SLOT_RECORDS).element(token).add(1).fetch(this.textCallback.selector, '');
-			} else {
-				return abi.encode('');
 			}
 		}
+		return new bytes(64);
 	}
 
 	function addrCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes memory) {

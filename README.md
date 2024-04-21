@@ -22,9 +22,8 @@
 	```bash
 	forge create \
 	--rpc-url https://cloudflare-eth.com \
-	--constructor-args \
-		0x56315b90c40730925ec5485cf004d835058518A0 \
-		[https://home.antistupid.com/base-evm-gateway] 1 \
+	--constructor-args 0x56315b90c40730925ec5485cf004d835058518A0 [https://home.antistupid.com/base-evm-gateway] 1 \
+	--etherscan-api-key 8914BPGNXPY85VPJ8I9YTMNKKXAJBC9WWM \
 	--verify \
 	--interactive \
 	contracts/evm-verifier2/OwnedOPVerifier.sol:OwnedOPVerifier
@@ -36,6 +35,7 @@
 	forge create \
 	  --rpc-url https://cloudflare-eth.com \
 	  --constructor-args 0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e $VERIFIER_ADDRESS \
+	  --etherscan-api-key 8914BPGNXPY85VPJ8I9YTMNKKXAJBC9WWM \
 	  --verify \
 	  --interactive \
 	  contracts/TeamNick2Baseless.sol:TeamNick2Baseless

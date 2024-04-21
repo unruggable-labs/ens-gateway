@@ -16,7 +16,7 @@ import {BytesUtils} from "@ensdomains/ens-contracts/contracts/wrapper/BytesUtils
 import {EVMFetcher} from "./evm-verifier2/EVMFetcherNoOZ.sol";
 
 // bases
-import {EVMFetchTarget} from "./evm-verifier2/EVMFetchTargetNoOZ.sol";
+import {EVMFetchTarget} from "./evm-verifier2/EVMFetchTarget.sol";
 
 contract TeamNick2BaselessNoOZ is IERC165, IExtendedResolver, EVMFetchTarget {
 	using BytesUtils for bytes;
@@ -41,7 +41,7 @@ contract TeamNick2BaselessNoOZ is IERC165, IExtendedResolver, EVMFetchTarget {
 		return x == type(IERC165).interfaceId || x == type(IExtendedResolver).interfaceId;
 	}
 
-	function _resolveBasename(bytes calldata data) internal view returns (bytes memory) {
+	function _resolveBasename(bytes calldata data) internal pure returns (bytes memory) {
 		bytes4 selector = bytes4(data);
 		if (selector == IAddrResolver.addr.selector) {
 			return abi.encode(address(0));
@@ -49,8 +49,6 @@ contract TeamNick2BaselessNoOZ is IERC165, IExtendedResolver, EVMFetchTarget {
 			(, uint256 cty) = abi.decode(data[4:], (bytes32, uint256));
 			if (cty == 0x80002105) { // base (8453) {
 				return abi.encode(abi.encodePacked(TEAMNICK_ADDRESS));
-			} else {
-				return abi.encode('');
 			}
 		} else if (selector == ITextResolver.text.selector) {
 			(, string memory key) = abi.decode(data[4:], (bytes32, string));
@@ -58,10 +56,9 @@ contract TeamNick2BaselessNoOZ is IERC165, IExtendedResolver, EVMFetchTarget {
 			if (keyhash == 0xb68b5f5089998f2978a1dcc681e8ef27962b90d5c26c4c0b9c1945814ffa5ef0) {
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=url&escape=1&encoding=utf8
 				return abi.encode("https://teamnick.xyz");
-			} else {
-				return abi.encode('');
 			}
 		}
+		return abi.encode('');
 	}
 
 	function resolve(bytes calldata name, bytes calldata data) external view returns (bytes memory) {
@@ -76,8 +73,6 @@ contract TeamNick2BaselessNoOZ is IERC165, IExtendedResolver, EVMFetchTarget {
 			(, uint256 cty) = abi.decode(data[4:], (bytes32, uint256));
 			if (cty == 60) {
 				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_RECORDS).element(token).fetch(this.addressCallback.selector, '');
-			} else {
-				return abi.encode('');
 			}
 		} else if (selector == ITextResolver.text.selector) {
 			(, string memory key) = abi.decode(data[4:], (bytes32, string));
@@ -87,10 +82,9 @@ contract TeamNick2BaselessNoOZ is IERC165, IExtendedResolver, EVMFetchTarget {
 			} else if (keyhash == 0xd1f86c93d831119ad98fe983e643a7431e4ac992e3ead6e3007f4dd1adf66343) { 
 				// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=avatar&escape=1&encoding=utf8
 				EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getDynamic(SLOT_RECORDS).element(token).add(1).fetch(this.textCallback.selector, '');
-			} else {
-				return abi.encode('');
 			}
 		}
+		return abi.encode('');
 	}
 	
 	function _findSelf(bytes memory name) internal view returns (uint256 offset) {

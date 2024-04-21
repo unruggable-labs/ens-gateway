@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IEVMVerifier } from "./IEVMVerifier.sol";
-import { EVMFetchTarget } from "./EVMFetchTargetNoOZ.sol";
+import { EVMFetchTarget } from "./EVMFetchTarget.sol";
 
 interface IEVMGateway {
     function getStorageSlots(bytes memory context, address addr, bytes32[] memory commands, bytes[] memory constants) external pure returns (bytes memory witness);

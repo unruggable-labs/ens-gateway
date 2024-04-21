@@ -4,5 +4,8 @@
 		"@adraffy/blocksmith": "^0.0.18",
 		"@resolverworks/ezccip": "^0.0.9",
 		"ethers": "^6.12.0"
+	},
+	"scripts": {
+		"build": "forge build --force"
 	}
 }

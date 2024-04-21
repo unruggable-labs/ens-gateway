@@ -2,6 +2,12 @@ import {ethers} from 'ethers';
 
 export async function expand_slots(provider, block, target, commands, constants) {
 	const getStorage = slot => provider.getStorage(target, ethers.toBeHex(slot, 32), block);
+	// const getStorage = async slot => {
+	// 	slot = ethers.toBeHex(slot, 32);
+	// 	let value = await provider.getStorage(target, slot, block);
+	// 	console.log({target, slot, value});
+	// 	return value;
+	// }
 	let requests = [];
 	for (let i = 0; i < commands.length; i++) {
 		requests.push(getValueFromPath(getStorage, commands[i], constants, requests.slice()));

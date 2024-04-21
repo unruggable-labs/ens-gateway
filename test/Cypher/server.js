@@ -8,4 +8,4 @@ let prover = Arb1Gateway.mainnet({
 
 let ccip = await serve(prover, {protocol: 'raw', port: 8019});
 
-//console.log(await prover.cached(BigInt(0x34a8)));
+//console.log(await prover.cached(BigInt('0x34a9')));
