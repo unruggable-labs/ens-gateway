@@ -16,8 +16,3 @@ export async function deploy_ens(foundry) {
 	// return {ens, root, eth};
 	return ens;
 }
-
-// export async function deploy_pr(foundry, ens) {
-// 	let public_resolver = await foundry.deploy({import: '@ensdomains/ens-contracts/contracts/resolvers/'})
-// 	pr = await foundry.deploy({file: 'PublicResolver', args: [ens, wrapper, ethers.ZeroAddress, reverse_registrar], from: 'deployer:pr'});
-// }

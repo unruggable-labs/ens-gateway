@@ -24,20 +24,26 @@ let root = Node.root();
 
 let cypher_resolver = await foundry.deploy({file: 'XCTENS2', args: [ens, verifier, '0xEC2244b547BD782FC7DeefC6d45E0B3a3cbD488d', 42161]});
 
-let owned_resolver = await foundry.deploy({import: '@ensdomains/ens-contracts/contracts/resolvers/OwnedResolver.sol'});
-
 let basename = await ens.$register(root.create('cypher'), {resolver: cypher_resolver});
 
-let slobo = await Resolver.get(ens, basename.create('slobo'));
+let owned_resolver = await foundry.deploy({file: 'OwnedResolver'});
+let _basename = await ens.$register(basename.create('_'), {resolver: owned_resolver});
+await foundry.confirm(owned_resolver.setText(_basename.namehash, 'url', 'https://www.cu-cypherpunk.com/'));
 
-console.log(await slobo.profile([
+console.log(await Resolver.get(ens, basename).then(r => r.profile([
+	{type: 'text', arg: 'url'},
+	{type: 'text', arg: 'description'},	
+	{type: 'addr', arg: 0x80000000 + 42161}
+])));
+
+console.log(await Resolver.get(ens, basename.create('slobo')).then(r => r.profile([
 	{type: 'text', arg: 'owner'},
 	{type: 'text', arg: 'com.twitter'},
 	{type: 'text', arg: 'avatar'},
 	{type: 'addr', arg: 60},
 	{type: 'addr'},
-	{type: 'addr', arg: 0x8000000A}
-]));
+	{type: 'addr', arg: 0x80000000 + 42161}
+])));
 
 foundry.shutdown();
 ccip.http.close();

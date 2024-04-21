@@ -41,44 +41,17 @@ contract XCTENS2 is SubExtResolver, EVMFetchTarget {
 		chain = _chain;
 	}
 
-	// function _resolveBasename(bytes calldata data) internal view returns (bytes memory) {
-	// 	bytes4 selector = bytes4(data);
-	// 	if (selector == IAddrResolver.addr.selector) {
-	// 		return abi.encode(address(0));
-	// 	} else if (selector == IAddressResolver.addr.selector) {
-	// 		(, uint256 cty) = abi.decode(data[4:], (bytes32, uint256));
-	// 		if (cty == 0x80002105) { // base (8453) {
-	// 			return abi.encode(abi.encodePacked(TEAMNICK_ADDRESS));
-	// 		} else {
-	// 			return abi.encode('');
-	// 		}
-	// 	} else if (selector == ITextResolver.text.selector) {
-	// 		(, string memory key) = abi.decode(data[4:], (bytes32, string));
-	// 		bytes32 keyhash = keccak256(bytes(key));
-	// 		if (keyhash == 0xb68b5f5089998f2978a1dcc681e8ef27962b90d5c26c4c0b9c1945814ffa5ef0) {
-	// 			// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=url&escape=1&encoding=utf8
-	// 			return abi.encode("https://teamnick.xyz");
-	// 		} else if (keyhash == 0x1596dc38e2ac5a6ddc5e019af4adcc1e017a04f510d57e69d6879d5d2996bb8e) {
-	// 			// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=description&escape=1&encoding=utf8
-	// 			EVMFetcher.newFetchRequest(verifier, TEAMNICK_ADDRESS).getStatic(SLOT_SUPPLY).fetch(this.descriptionCallback.selector, '');
-	// 		} else {
-	// 			return abi.encode('');
-	// 		}
-	// 	}
-	// }
+	function _replaceNode(bytes memory v, bytes32 node) internal pure returns (bytes memory) {
+		assembly { mstore(add(v, 36), node) }
+		return v;
+	}
 
-	// function _req() internal pure returns (EVMFetcher.EVMFetchRequest memory) {
-	// 	return EVMFetcher.newFetchRequest(verifier, xctens);;
-	// }
-
-	function _resolve(bytes32 node, bytes memory label, bytes calldata data) internal override view returns (bytes memory) {
-		if (label.length == 0) return _resolveBasename(node, data);
+	function _resolve(bytes32 node, bytes memory label, bytes calldata request) internal override view returns (bytes memory) {
+		if (label.length == 0) return _resolveBasename(node, request);
 		bytes32 token = keccak256(bytes(label));
 		EVMFetcher.EVMFetchRequest memory req = EVMFetcher.newFetchRequest(verifier, xctens);
 		req.getStatic(SLOT_OWNERS).element(token);
-		bytes memory v = data;
-		assembly { mstore(add(v, 36), token) } // replace node with token
-		req.fetch(this.ownerCallback.selector, v);
+		req.fetch(this.ownerCallback.selector, _replaceNode(request, token)); // replace node with token
 	}
 
 	function ownerCallback(bytes[] calldata values, bytes calldata carry) external view returns (bytes memory v) {
@@ -96,7 +69,7 @@ contract XCTENS2 is SubExtResolver, EVMFetchTarget {
 			(, string memory key) = abi.decode(carry[4:], (bytes32, string));
 			bytes32 keyhash = keccak256(bytes(key));
 			if (keyhash == keccak256(bytes("owner"))) {
-				return abi.encode(string.concat("eip155:42161:", Strings.toHexString(owner)));
+				return abi.encode(string.concat("eip155:", Strings.toString(chain), ":", Strings.toHexString(owner)));
 			} else {
 				req.getDynamic(SLOT_TEXTS).element(node).element(key);
 			}
@@ -129,15 +102,15 @@ contract XCTENS2 is SubExtResolver, EVMFetchTarget {
 		return new bytes(64);
 	}
 
-	function _resolveBasename(bytes32 node, bytes calldata data) internal view returns (bytes memory) {
-		bytes4 selector = bytes4(data);
+	function _resolveBasename(bytes32 node, bytes calldata request) internal view returns (bytes memory) {
+		bytes4 selector = bytes4(request);
 		if (selector == IAddressResolver.addr.selector) {
-			uint256 cty = uint256(bytes32(data[36:]));
+			uint256 cty = uint256(bytes32(request[36:]));
 			if (cty == (0x80000000 | chain)) {
 				return abi.encode(abi.encodePacked(xctens));
 			}
 		} else if (selector == ITextResolver.text.selector) {
-			(, string memory key) = abi.decode(data[4:], (bytes32, string));
+			(, string memory key) = abi.decode(request[4:], (bytes32, string));
 			bytes32 keyhash = keccak256(bytes(key));
 			if (keyhash == keccak256(bytes("description"))) {
 				EVMFetcher.newFetchRequest(verifier, xctens).getStatic(SLOT_SUPPLY).fetch(this.descriptionCallback.selector, '');
@@ -146,7 +119,7 @@ contract XCTENS2 is SubExtResolver, EVMFetchTarget {
 		bytes32 basenode = keccak256(abi.encode(node, keccak256(bytes("_"))));
 		address resolver = ens.resolver(basenode);
 		if (resolver != address(0)) {
-			(bool ok, bytes memory v) = resolver.staticcall(data);
+			(bool ok, bytes memory v) = resolver.staticcall(_replaceNode(request, basenode));
 			if (ok) return v;
 		}
 		return new bytes(64);
