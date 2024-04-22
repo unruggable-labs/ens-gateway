@@ -57,7 +57,7 @@
 
 ### Tests
 
-1. `node test/Cypher/server2.js`
+1. `node test/Cypher/resolver2.js`
 
 ### Server
 
