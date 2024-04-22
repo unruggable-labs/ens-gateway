@@ -1,18 +1,14 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
+import {Expander} from '../evm-storage.js';
 
 export class OPGateway extends EZCCIP {
-	static forBaseMainnet({provider1, provider2, expander}) {
-		// https://docs.base.org/docs/base-contracts
-		if (!provider2) {
-			provider2 = new ethers.JsonRpcProvider('https://mainnet.base.org', 8453, {staticNetwork: true});
-		}
+	static base_mainnet(a) {
 		return new this({
-			provider1, 
-			provider2,
+			// https://docs.base.org/docs/base-contracts
 			L2OutputOracle: '0x56315b90c40730925ec5485cf004d835058518A0',
 			L2ToL1MessagePasser: '0x4200000000000000000000000000000000000016',
-			expander
+			...a
 		});
 	}
 	constructor({provider1, provider2, L2OutputOracle, L2ToL1MessagePasser, expander}) {
@@ -27,8 +23,8 @@ export class OPGateway extends EZCCIP {
 		this._last = undefined;
 		this.register(`getStorageSlots(address target, bytes32[] commands, bytes[] constants) external view returns (bytes)`, async ([target, commands, constants]) => {
 			let output = await this.latest_output();
-			let slots = await expander(this.provider2, output.block, target, commands, constants);
-			let proof = await this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x, 32)), output.block]);
+			let slots = await new Expander(this.provider2, target, output.block).expand(commands, constants);
+			let proof = await this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), output.block]);
 			let witness = ethers.AbiCoder.defaultAbiCoder().encode(
 				[
 					'tuple(uint256 l2OutputIndex, tuple(bytes32 version, bytes32 stateRoot, bytes32 messagePasserStorageRoot, bytes32 latestBlockhash) outputRootProof)',

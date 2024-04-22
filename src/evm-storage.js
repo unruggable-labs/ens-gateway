@@ -1,31 +1,63 @@
 import {ethers} from 'ethers';
 
-export async function expand_slots(provider, block, target, commands, constants) {
-	const getStorage = slot => provider.getStorage(target, ethers.toBeHex(slot, 32), block);
-	// const getStorage = async slot => {
-	// 	slot = ethers.toBeHex(slot, 32);
-	// 	let value = await provider.getStorage(target, slot, block);
-	// 	console.log({target, slot, value});
-	// 	return value;
-	// }
-	let requests = [];
-	for (let i = 0; i < commands.length; i++) {
-		requests.push(getValueFromPath(getStorage, commands[i], constants, requests.slice()));
+export class Expander {
+	constructor(provider, target, block, cache) {
+		this.provider = provider;
+		this.target = target;
+		this.block = block;
+		this.cache = cache;
 	}
-	let results = await Promise.all(requests);
-	return results.flatMap(x => x.slots);
+	async getStorage(slot) {
+		slot = ethers.toBeHex(slot);
+		if (this.cache) {
+			return this.cache.get(`${this.target}:${slot}`, () => this.provider.getStorage(this.target, slot, this.block));
+		} else {
+			return this.provider.getStorage(this.target, slot, this.block);
+		}
+	}
+	async expand(commands, constants) {
+		let requests = [];
+		for (let i = 0; i < commands.length; i++) {
+			requests.push(this.getValueFromPath(commands[i], constants, requests.slice()));
+		}
+		let results = await Promise.all(requests);
+		return results.flatMap(x => x.slots);
+	}
+	async getValueFromPath(command, constants, requests) {
+		const {slot, isDynamic} = await computeFirstSlot(command, constants, requests);
+		if (isDynamic) return this.getDynamicValue(slot);
+		return {
+			slots: [slot],
+			isDynamic,
+			value: this.getStorage(slot).then(v => ethers.zeroPadValue(v, 32))
+		};
+	}	
+	async getDynamicValue(slot) {
+		const firstValue = ethers.getBytes(await this.getStorage(slot));
+		if (firstValue[31] & 0x01) {
+			// Long value: first slot is `length * 2 + 1`, following slots are data.
+			const len = (Number(ethers.toBigInt(firstValue)) - 1) / 2;
+			const hashedSlot = BigInt(ethers.solidityPackedKeccak256(['uint256'], [slot]));
+			const slotNumbers = Array.from({length: Math.ceil(len / 32)}, (_, i) => hashedSlot + BigInt(i));
+			return {
+				slots: [slot, ...slotNumbers],
+				isDynamic: true,
+				value: Promise.all(slotNumbers.map(x => this.getStorage(x))).then(v => {
+					return ethers.dataSlice(ethers.concat(v), 0, len);
+				}),
+			};
+		} else {
+			// Short value: least significant byte is `length * 2`, other bytes are data.
+			const len = firstValue[31] / 2;
+			return {
+				slots: [slot],
+				isDynamic: true,
+				value: Promise.resolve(ethers.dataSlice(firstValue, 0, len)),
+			};
+		}
+	}
 }
-
-async function getValueFromPath(getStorage, command, constants, requests) {
-	const {slot, isDynamic} = await computeFirstSlot(command, constants, requests);
-	if (isDynamic) return getDynamicValue(getStorage, slot);
-	return {
-		slots: [slot],
-		isDynamic,
-		value: getStorage(slot).then(v => ethers.zeroPadValue(v, 32))
-	};
-}
-
+	
 async function computeFirstSlot(command, constants, requests) {
 	const commandWord = ethers.getBytes(command);
 	const flags = commandWord[0];
@@ -55,27 +87,3 @@ async function computeFirstSlot(command, constants, requests) {
 	return { slot, isDynamic };
 }
 
-async function getDynamicValue(getStorage, slot) {
-	const firstValue = ethers.getBytes(await getStorage(slot));
-	if (firstValue[31] & 0x01) {
-		// Long value: first slot is `length * 2 + 1`, following slots are data.
-		const len = (Number(ethers.toBigInt(firstValue)) - 1) / 2;
-		const hashedSlot = BigInt(ethers.solidityPackedKeccak256(['uint256'], [slot]));
-		const slotNumbers = Array.from({length: Math.ceil(len / 32)}, (_, i) => hashedSlot + BigInt(i));
-		return {
-			slots: [slot, ...slotNumbers],
-			isDynamic: true,
-			value: Promise.all(slotNumbers.map(getStorage)).then(v => {
-				return ethers.dataSlice(ethers.concat(v), 0, len);
-			}),
-		};
-	} else {
-		// Short value: least significant byte is `length * 2`, other bytes are data.
-		const len = firstValue[31] / 2;
-		return {
-			slots: [slot],
-			isDynamic: true,
-			value: Promise.resolve(ethers.dataSlice(firstValue, 0, len)),
-		};
-	}
-}

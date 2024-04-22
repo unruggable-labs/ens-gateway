@@ -1,7 +1,7 @@
 import {Foundry} from '@adraffy/blocksmith';
 import {ethers} from 'ethers';
 
-let foundry = await Foundry.launch({fork: 'https://cloudflare-eth.com'});
+let foundry = await Foundry.launch();
 
 await foundry.deploy({file: 'TeamNick', args: [ethers.ZeroAddress]});
 await foundry.deploy({file: 'TeamNick2', args: [ethers.ZeroAddress]});

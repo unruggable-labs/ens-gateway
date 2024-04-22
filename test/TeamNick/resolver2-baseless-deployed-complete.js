@@ -1,7 +1,10 @@
+// this uses deployed verifier + deployed resolver
+
 import {Resolver, Node} from '@adraffy/blocksmith';
 import {ethers} from 'ethers';
+import {create_provider} from '../../src/providers.js';
 
-let provider = new ethers.CloudflareProvider();
+let provider = create_provider(1);
 
 let ens = new ethers.Contract('0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e', [
 	'function resolver(bytes32 node) view returns (address)',

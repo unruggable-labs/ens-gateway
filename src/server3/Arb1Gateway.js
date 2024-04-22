@@ -1,36 +1,9 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
 import {SmartCache} from '../SmartCache.js';
-import {Expander} from '../evm-storage.js';
+import {MultiExpander} from '../evm-storage-multi.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
-
-// newer
-// https://github.com/OffchainLabs/arbitrum-classic/blob/551a39b381dcea81e03e7599fcb01fddff4fe96c/packages/arb-bridge-eth/contracts/rollup/RollupCore.sol#L175
-// https://github.com/OffchainLabs/arbitrum-classic/blob/551a39b381dcea81e03e7599fcb01fddff4fe96c/packages/arb-bridge-eth/contracts/rollup/IRollupCore.sol#L42	
-
-/*
-RollupLib.Assertion: 
-    struct Assertion {
-        ExecutionState beforeState;
-        ExecutionState afterState;
-        uint64 numBlocks;
-    }
-    struct ExecutionState {
-        GlobalState globalState;
-        MachineStatus machineStatus;
-    }
-	struct GlobalState {
-		bytes32[2] bytes32Vals;
-		uint64[2] u64Vals;
-	}
-	enum MachineStatus {
-		RUNNING,
-		FINISHED,
-		ERRORED,
-		TOO_FAR
-	}
-*/
 
 export class Arb1Gateway extends EZCCIP {
 	static mainnet(a) {
@@ -62,8 +35,10 @@ export class Arb1Gateway extends EZCCIP {
 			)`,
 		], provider1);
 		this.call_cache = new SmartCache({max_cached: 100});
-		this.node_cache = new SmartCache({ms: 60*60000, ms_error: 5000, max_cached: 5});
-		this.register(`getStorageSlots(bytes context, address target, bytes32[] commands, bytes[] constants) external view returns (bytes)`, async ([index, target, commands, constants], context, history) => {	
+		this.node_cache = new SmartCache({ms: 60*60000, ms_error: 5000, max_cached: 10});
+		this.register(`fetch(bytes context, uint16 outputs, address[] targets, bytes ops, bytes[] consts) external view returns (bytes)`, async ([index, outputs, targets, ops, consts], context, history) => {
+			if (!outputs) throw new Error('no outputs');
+			if (!targets.length) throw new Error('no targets');
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
 			return this.call_cache.get(hash, async () => {
@@ -71,11 +46,11 @@ export class Arb1Gateway extends EZCCIP {
 				let latest = await this.node_cache.get('LATEST', () => this.L2Rollup.latestNodeCreated().then(Number));
 				if (index < latest - this.node_cache.max_cached) throw new Error('too old');
 				let node = await this.node_cache.get(index, x => this.fetch_node(x));
-				let slots = await new Expander(this.provider2, target, node.block, node.slot_cache).expand(commands, constants);
-				let proof = await this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), node.block]);
+				let slots = await new MultiExpander(this.provider2, node.block, block_cache.slot_cache).expand(outputs, targets, ops, consts);
+				let proofs = await Promise.all(slots.map(([target, slots]) => this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), node.block])));
 				let witness = ABI_CODER.encode(
-					['bytes32', 'bytes', 'tuple(bytes[], bytes[][])'],
-					[node.sendRoot, node.rlpEncodedBlock, [proof.accountProof, proof.storageProof.map(x => x.proof)]]
+					['bytes32', 'bytes', 'tuple(bytes[], bytes[][])[]'],
+					[node.sendRoot, node.rlpEncodedBlock, proofs.map(p => [p.accountProof, p.storageProof.map(x => x.proof)])]
 				);
 				return ABI_CODER.encode(['bytes'], [witness]);
 			});

@@ -55,6 +55,12 @@ export class SmartCache {
 			}
 		}, t - now).unref(); // schedule
 	}
+	clear() {
+		this.cached.clear();
+		this.pending.clear();
+		clearTimeout(this.timer);
+		this.timer_t = Infinity;
+	}
 	add(key, value, ms) {
 		if (!ms) ms = this.ms_success;
 		let {cached, max_cached} = this;

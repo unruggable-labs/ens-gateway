@@ -5,5 +5,8 @@ node_modules/
 cache/
 out/
 
+# project
+.env
+
 # raffy
 junk/

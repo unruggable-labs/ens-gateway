@@ -1,19 +1,16 @@
 import {Foundry, Resolver, Node} from '@adraffy/blocksmith';
 import {serve} from '@resolverworks/ezccip';
 import {OPGateway} from '../../src/server/OPGateway.js';
-import {expand_slots} from '../../src/evm-storage.js';
 import {ethers} from 'ethers';
+import {provider_url, create_provider_pair, CHAIN_BASE} from '../../src/providers.js';
 
-let foundry = await Foundry.launch({fork: 'https://cloudflare-eth.com'});
+let foundry = await Foundry.launch({fork: provider_url(1)});
 
-let prover = OPGateway.forBaseMainnet({
-	provider1: foundry.provider,
-	expander: expand_slots
-});
+let gateway = OPGateway.base_mainnet(create_provider_pair(CHAIN_BASE));
 
-let ccip = await serve(prover, {protocol: 'raw'});
+let ccip = await serve(gateway, {protocol: 'raw'});
 
-let verifier = await foundry.deploy({file: 'evm-verifier/OPVerifier', args: [[ccip.endpoint], prover.L2OutputOracle]});
+let verifier = await foundry.deploy({file: 'evm-verifier/OPVerifier', args: [[ccip.endpoint], gateway.L2OutputOracle]});
 
 let teamnick = await foundry.deploy({file: 'TeamNick', args: [verifier]});
 

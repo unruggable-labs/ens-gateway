@@ -1,7 +1,10 @@
+// this uses deployed verifier + foundry resolver
+
 import {Foundry, Resolver, Node} from '@adraffy/blocksmith';
 import {ethers} from 'ethers';
+import {provider_url} from '../../src/providers.js';
 
-let foundry = await Foundry.launch({fork: 'https://cloudflare-eth.com'});
+let foundry = await Foundry.launch({fork: provider_url(1)});
 
 let root = Node.root();
 let ens = await foundry.deploy({import: '@ensdomains/ens-contracts/contracts/registry/ENSRegistry.sol'});

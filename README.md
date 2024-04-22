@@ -1,12 +1,21 @@
 # ens-gateway
 
+### Setup
+
+1. `foundryup`
+1. `npm i`
+1. create [`.env`](./.env.example)
+
 ## TeamNick2
+
+### Tests
+
+1. `node test/TeamNick2/resolver.js`
+1. `node test/TeamNick2/resolver2.js`
 
 ### Server
 
-1. `npm i`
-1. `node test/TeamNick/server.js`
-	* update: port, provider1, provider2
+1. `node test/TeamNick/server2.js`
 
 #### Deployments
 
@@ -14,8 +23,6 @@
 
 ### Contracts
 
-1. `foundryup`
-1. `npm i`
 1. Test: `OwnedOPVerifier` + `TeamNick2Baseless`
 	* `node test/TeamNick/resolver2-baseless-owned.js`
 1. Deploy [**OwnedOPVerifier.sol**](./contracts/evm-verifier2/OwnedOPVerifier.sol)
@@ -42,3 +49,14 @@
 	```
 #### Deployments
 * **base** &mdash; OwnedOPVerifier: [`0xEC2244b547BD782FC7DeefC6d45E0B3a3cbD488d`](https://etherscan.io/address/0xEC2244b547BD782FC7DeefC6d45E0B3a3cbD488d)
+
+
+## Cypher
+
+### Tests
+
+1. `node test/Cypher/server2.js`
+
+### Server
+
+1. `node test/Cypher/server2.js`
