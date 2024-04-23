@@ -16,3 +16,6 @@
 [submodule "lib/buffer"]
 	path = lib/buffer
 	url = https://github.com/ensdomains/buffer
+[submodule "lib/OffchainNext.sol"]
+	path = lib/OffchainNext.sol
+	url = https://github.com/resolverworks/OffchainNext.sol
