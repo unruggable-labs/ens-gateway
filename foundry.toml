@@ -9,7 +9,8 @@ remappings = [
 	'@ensdomains/ens-contracts/=lib/ens-contracts/',
 	'@ensdomains/buffer=lib/buffer',
 	'@eth-optimism/=lib/optimism/packages/',
-	'@arbitrum/nitro-contracts=lib/nitro-contracts/'
+	'@arbitrum/nitro-contracts/=lib/nitro-contracts/',
+	'@resolverworks/OffchainNext-contracts/=lib/OffchainNext.sol/'
 ]
 
 optimizer = true
