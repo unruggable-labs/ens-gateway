@@ -5,6 +5,6 @@ import {ENV} from '../../src/env.js';
 
 let prover = Arb1Gateway.mainnet(create_provider_pair(CHAIN_ARB1));
 
-let ccip = await serve(prover, {protocol: 'raw', port: parseInt(ENV.PORT_ARB1 ?? 8019)});
+let ccip = await serve(prover, {protocol: 'raw', port: parseInt(ENV.PORT_ARB1 ?? 0)});
 
 //console.log(await prover.cached(BigInt('0x34a9')));

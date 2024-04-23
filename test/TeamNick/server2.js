@@ -5,4 +5,4 @@ import {ENV} from '../../src/env.js';
 
 let gateway = OPGateway.base_mainnet(create_provider_pair(CHAIN_BASE));
 
-let ccip = await serve(gateway, {protocol: 'raw', port: parseInt(ENV.PORT_BASE ?? 8018)});
+let ccip = await serve(gateway, {protocol: 'raw', port: parseInt(ENV.PORT_BASE ?? 0)});
