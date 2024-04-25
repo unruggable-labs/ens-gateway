@@ -6,18 +6,21 @@ export const CHAIN_BASE = 8453;
 
 export function provider_url(chain) {
 	if (!Number.isInteger(chain)) throw new Error('expected chain');
-	const {INFURA_KEY, ALCHEMY_KEY} = ENV;
-	if (INFURA_KEY) {
+	if (ENV.INFURA_KEY) {
 		try {
-			return ethers.InfuraProvider.getRequest(ethers.Network.from(chain)).url;
+			return ethers.InfuraProvider.getRequest(ethers.Network.from(chain), ENV.INFURA_KEY).url;
 		} catch (err) {
 		}
 	}
-	if (ALCHEMY_KEY) {
+	if (ENV.ALCHEMY_KEY) {
 		try {
-			return ethers.AlchemyProvider.getRequest(ethers.Network.from(chain)).url;
+			return ethers.AlchemyProvider.getRequest(ethers.Network.from(chain), ENV.ALCHEMY_KEY).url;
 		} catch (err) {
 		}
+	}
+	let key = ENV[`ALCHEMY_KEY_${chain}`];
+	if (key) {
+		return ethers.AlchemyProvider.getRequest(ethers.Network.from(chain), key).url;
 	}
 	switch (chain) {
 		case 1: return 'https://cloudflare-eth.com';
