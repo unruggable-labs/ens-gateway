@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import { IEVMVerifier } from "./IEVMVerifier.sol";
-import { StateProof, EVMProofHelper } from "./EVMProofHelper.sol";
-
-import { RLPReader } from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
-import { Types } from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
-
+import {GatewayRequest} from "./GatewayRequest.sol";
+import {IEVMVerifier} from "./IEVMVerifier.sol";
+import {EVMProofHelper, StateProof} from "./EVMProofHelper.sol";
+import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
+import {Types} from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
 import {Hashing} from "../forge-import-bug/Hashing.sol";
 
 interface IL2OutputOracle {
@@ -17,6 +16,7 @@ interface IL2OutputOracle {
 contract OPVerifier is IEVMVerifier {
 
 	error OutputRootMismatch(uint256 l2OutputIndex, bytes32 expected, bytes32 actual);
+	error OutputsMismatch(uint256 expected, uint256 actual);
 
 	string[] public gatewayURLs;
 	IL2OutputOracle immutable oracle;
@@ -33,13 +33,14 @@ contract OPVerifier is IEVMVerifier {
 		context = abi.encode(oracle.latestOutputIndex() - delay);
 	}
 
-	function getStorageValues(bytes memory context, address target, bytes32[] memory commands, bytes[] memory constants, bytes memory proof) external view returns(bytes[] memory values) {
+	function getStorageValues(bytes memory context, GatewayRequest memory req, bytes memory proof) external view returns(bytes[] memory values) {
 		uint256 outputIndex = abi.decode(context, (uint256));
-		(Types.OutputRootProof memory outputRootProof, StateProof memory stateProof) = abi.decode(proof, (Types.OutputRootProof, StateProof));
-		Types.OutputProposal memory l2out = oracle.getL2Output(outputIndex);
+		(Types.OutputRootProof memory outputRootProof, StateProof[] memory stateProofs) = abi.decode(proof, (Types.OutputRootProof, StateProof[]));
+		Types.OutputProposal memory output = oracle.getL2Output(outputIndex);
 		bytes32 expectedRoot = Hashing.hashOutputRootProof(outputRootProof);
-		if(l2out.outputRoot != expectedRoot) revert OutputRootMismatch(outputIndex, expectedRoot, l2out.outputRoot);
-		return EVMProofHelper.getStorageValues(target, commands, constants, outputRootProof.stateRoot, stateProof);
+		if (output.outputRoot != expectedRoot) revert OutputRootMismatch(outputIndex, expectedRoot, output.outputRoot);
+		values = EVMProofHelper.getStorageValues(req, outputRootProof.stateRoot, stateProofs);
+		if (values.length != req.outputs) revert OutputsMismatch(req.outputs, values.length);
 	}
 
 }

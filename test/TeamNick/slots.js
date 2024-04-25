@@ -6,15 +6,17 @@ const A = '0x7C6EfCb602BC88794390A0d74c75ad2f1249A17f';
 
 const SLOT_RECORDS = ethers.toBeHex(7, 32);
 
-// struct Record {
-//   address addr;
-//   string avatar;
-// }
+
 
 for (let i = 0; i < 10; i++) {
 	console.log(i, await provider.getStorage(A, ethers.toBeHex(i, 32)));
 }
 console.log();
+
+// 7 = mapping(uint256 => Record) records;
+// struct Record { address addr; string avatar; }
+// 8 = uint256 public totalSupply;
+// 9 = string public baseUri;
 
 const ID_RAFFY = ethers.id('raffy');
 

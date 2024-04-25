@@ -1,44 +1,45 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {IEVMVerifier} from "./IEVMVerifier.sol";
-import {EVMFetchTarget} from "./EVMFetchTarget.sol";
-import {IEVMGateway} from "./IEVMGateway.sol";
+import {GatewayRequest} from "./GatewayRequest.sol";
 
 uint256 constant MAX_OPS = 256;
 uint16 constant MAX_INPUTS = 32;
 uint16 constant MAX_OUTPUTS = 256;
 
 uint8 constant OP_PATH_START  = 1;
-uint8 constant OP_PUSH    = 3;
-uint8 constant OP_ADD     = 4;
-uint8 constant OP_FOLLOW  = 5;
-uint8 constant OP_KECCAK  = 6;
-uint8 constant OP_COPY    = 7;
-uint8 constant OP_REF     = 8;
 uint8 constant OP_PATH_END    = 9;
+uint8 constant OP_PUSH    = 3;
+uint8 constant OP_SLOT_ADD     = 4;
+uint8 constant OP_SLOT_FOLLOW  = 5;
+uint8 constant OP_STACK_KECCAK  = 6;
+uint8 constant OP_PUSH_BYTE = 7;
+uint8 constant OP_PUSH_OUTPUT     = 8;
+uint8 constant OP_STACK_SLICE = 10;
+
+interface GatewayAPI {
+	function fetch(
+		bytes memory context, 
+		uint256 outputs, 
+		bytes memory ops, 
+		bytes[] memory inputs
+	) external pure returns (bytes memory witness);
+}
 
 library EVMFetcher {
 
 	error Overflow();
-	error OffchainLookup(address sender, string[] urls, bytes request, bytes4 callback, bytes carry);
 
-	struct Req {
-		uint256 outputs;
-		bytes ops;
-		bytes[] inputs;
-	}
-
-	function create() internal pure returns (Req memory) {
+	function create() internal pure returns (GatewayRequest memory) {
 		bytes memory ops = new bytes(MAX_OPS);
 		bytes[] memory inputs =  new bytes[](MAX_INPUTS);
 		assembly {
 			mstore(ops, 0)
 			mstore(inputs, 0)
 		}
-		return Req(0, ops, inputs);
+		return GatewayRequest(0, ops, inputs);
 	}
-	function addOp(Req memory req, uint8 op) internal pure {
+	function addOp(GatewayRequest memory req, uint8 op) internal pure {
 		unchecked {
 			bytes memory v = req.ops;
 			uint256 n = v.length + 1;
@@ -49,7 +50,7 @@ library EVMFetcher {
 			}
 		}
 	}
-	function addConst(Req memory req, bytes memory v) internal pure returns (uint8 ci) {
+	function addConst(GatewayRequest memory req, bytes memory v) internal pure returns (uint8 ci) {
 		unchecked {
 			bytes[] memory m = req.inputs;
 			uint256 n = m.length + 1;
@@ -61,55 +62,60 @@ library EVMFetcher {
 			}
 		}
 	}
-	function start(Req memory req) internal pure {
+	function start(GatewayRequest memory req) internal pure {
 		unchecked { 
 			req.outputs += 1;
 			if (req.outputs > MAX_OUTPUTS) revert Overflow();
 			addOp(req, OP_PATH_START);
 		}
 	}
-	function end(Req memory req, uint8 size) internal pure {
+	function end(GatewayRequest memory req, uint8 size) internal pure {
 		addOp(req, OP_PATH_END);
 		addOp(req, size);
 	}
-	function copy(Req memory req, uint8 ci) internal pure {
-		addOp(req, OP_COPY);
-		addOp(req, ci);
-	}
-	function ref(Req memory req, uint8 oi) internal pure {
-		addOp(req, OP_REF);
+	function output(GatewayRequest memory req, uint8 oi) internal pure {
+		addOp(req, OP_PUSH_OUTPUT);
 		addOp(req, oi);
 	}
-	function push(Req memory req, address x) internal pure { push(req, abi.encode(x)); }
-	function push(Req memory req, uint256 x) internal pure { push(req, abi.encode(x)); }
-	function push(Req memory req, bytes32 x) internal pure { push(req, abi.encode(x)); }
-	function push(Req memory req, bytes memory v) internal pure {
+	function slice(GatewayRequest memory req, uint8 a, uint8 n) internal pure {
+		addOp(req, OP_STACK_SLICE);
+		addOp(req, a);
+		addOp(req, n);
+	}
+	function push(GatewayRequest memory req, uint256 x) internal pure { 
+		if (x < 256) {
+			addOp(req, OP_PUSH_BYTE);
+			addOp(req, uint8(x));
+		} else {
+			push(req, abi.encode(x)); 
+		}
+	}
+	function push(GatewayRequest memory req, address x) internal pure { push(req, abi.encode(x)); }
+	function push(GatewayRequest memory req, bytes32 x) internal pure { push(req, abi.encode(x)); }
+	function push(GatewayRequest memory req, bytes memory v) internal pure {
 		addOp(req, OP_PUSH);
 		addOp(req, addConst(req, v));
 	}
-	function follow(Req memory req) internal pure {
-		addOp(req, OP_FOLLOW);
+	function input(GatewayRequest memory req, uint8 ci) internal pure {
+		addOp(req, OP_PUSH);
+		addOp(req, ci);
 	}
-	function add(Req memory req) internal pure {
-		addOp(req, OP_ADD);
+	function follow(GatewayRequest memory req) internal pure {
+		addOp(req, OP_SLOT_FOLLOW);
 	}
-	function keccak(Req memory req) internal pure {
-		addOp(req, OP_KECCAK);
+	function add(GatewayRequest memory req) internal pure {
+		addOp(req, OP_SLOT_ADD);
 	}
-
-	function fetch(Req memory req, IEVMVerifier verifier, bytes4 callback, bytes memory carry) internal view {
-		(string[] memory urls, bytes memory context) = verifier.getStorageContext();
-		revert OffchainLookup(
-			address(this),
-			urls,
-			abi.encodeCall(IEVMGateway.fetch, (context, uint16(req.outputs), req.ops, req.inputs)),
-			EVMFetchTarget.getStorageSlotsCallback.selector,
-			abi.encode(verifier, context, req.outputs, req.ops, req.inputs, callback, carry)
-		);
+	// function concat(GatewayRequest memory req) internal pure {
+	// 	addOp(req, OP_CONCAT);
+	// }
+ 	function keccak(GatewayRequest memory req, uint8 n) internal pure {
+		addOp(req, OP_STACK_KECCAK);
+		addOp(req, n);
 	}
 
-	function debug(Req memory req) internal pure returns (bytes memory) {
-		return abi.encodeCall(IEVMGateway.fetch, ('', uint16(req.outputs), req.ops, req.inputs));
+	function encode(GatewayRequest memory req, bytes memory context) internal pure returns (bytes memory) {
+		return abi.encodeCall(GatewayAPI.fetch, (context, req.outputs, req.ops, req.inputs));
 	}
 
 }

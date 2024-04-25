@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
+import {GatewayRequest} from "./EVMFetcher.sol";
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
-import {Bytes} from "@eth-optimism/contracts-bedrock/src/libraries/Bytes.sol";
-
-//import {SecureMerkleTrie} from "@eth-optimism/contracts-bedrock/src/libraries/trie/SecureMerkleTrie.sol";
 import {SecureMerkleTrie} from "../trie-with-nonexistance/SecureMerkleTrie.sol";
 
 struct StateProof {
@@ -14,12 +12,21 @@ struct StateProof {
 
 uint8 constant FLAG_DYNAMIC = 0x01;
 
+uint8 constant OP_PATH_START = 1;
+uint8 constant OP_PATH_END = 9;
+uint8 constant OP_PUSH = 3;
+uint8 constant OP_PUSH_OUTPUT = 8;
+uint8 constant OP_PUSH_BYTE = 7;
+uint8 constant OP_SLOT_ADD = 4;
+uint8 constant OP_SLOT_FOLLOW = 5;
+uint8 constant OP_STACK_KECCAK = 6;
+uint8 constant OP_STACK_SLICE = 10;
+
+
 library EVMProofHelper {
-    using Bytes for bytes;
 
     error AccountNotFound(address);
-    error UnknownOpcode(uint8);
-    error InvalidSlotSize(uint256 size);
+    error Invalid();
 
     /**
      * @notice Get the storage root for the provided merkle proof
@@ -61,76 +68,88 @@ library EVMProofHelper {
         return RLPReader.readBytes(retrievedValue);
     }
 
-    function getFixedValue(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns(bytes32) {
-        bytes memory value = getSingleStorageProof(storageRoot, slot, witness);
+    function getStorage(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (uint256) {
+        //bytes memory value = getSingleStorageProof(storageRoot, slot, witness);
         // RLP encoded storage slots are stored without leading 0 bytes.
         // Casting to bytes32 appends trailing 0 bytes, so we have to bit shift to get the 
         // original fixed-length representation back.
-        return bytes32(value) >> (256 - 8 * value.length);
+        //return bytes32(value) >> (256 - 8 * value.length);
+		return _toUint256(getSingleStorageProof(storageRoot, slot, witness));
     }
 
+	function proveOutput(bytes32 storageRoot, bytes[][] memory storageProofs, uint256 slot, uint256 step) internal pure returns (bytes memory v) {
+		uint256 first = getStorage(storageRoot, slot, storageProofs[0]);
+		if (step == 0) return abi.encode(first);
+		uint256 size;
+		if (step == 1 && (first & 1) == 0) {
+			size = (first & 0xFF) >> 1;
+			v = new bytes(size);
+			if (size > 0) assembly { mstore(add(v, 32), shl(sub(32, size), first)) }
+		}
+		first >>= 1;
+		size = first * step;
+		slot = uint256(keccak256(abi.encode(slot)));
+		v = new bytes(size);
+		uint256 i;
+		while (i < first) {
+			i += 1;
+			uint256 value = getStorage(storageRoot, slot, storageProofs[i]);
+			assembly { mstore(add(v, shl(5, i)), value) }
+		}
+	}
 
-    function computeFirstSlot(bytes32 command, bytes[] memory constants, bytes[] memory values) private pure returns(bool isDynamic, uint256 slot) {
-		uint8 flags = uint8(command[0]);
-		isDynamic = (flags & FLAG_DYNAMIC) != 0;
-		for(uint256 j = 1; j < 32; j++) {
-			uint8 op = uint8(command[j]);
-			if (op == 0xFF) break;
-			uint8 operand = op & 0x1F;
-			op >>= 5;
-			if (op == 0) {
-				slot = uint256(keccak256(abi.encodePacked(constants[operand], slot)));
-			} else if (op == 1) {
- 				slot = uint256(keccak256(abi.encodePacked(values[operand], slot)));
-			} else if (op == 2) {
-				slot += uint256(bytes32(constants[operand]));
+	function _toUint256(bytes memory v) internal pure returns (uint256) {
+		return uint256(v.length < 32 ? bytes32(v) >> ((32 - v.length) << 3) : bytes32(v));
+	}
+
+	function getStorageValues(GatewayRequest memory req, bytes32 stateRoot, StateProof[] memory proofs) internal pure returns(bytes[] memory outputs) {
+		outputs = new bytes[](req.outputs);
+		uint256 slot;
+		bytes[] memory stack = new bytes[](16);
+		uint256 stackIndex;
+		uint256 outputIndex;
+		bytes32 storageRoot;
+		for (uint256 i; i < req.ops.length; ) {
+			uint256 op = uint8(req.ops[i++]);
+			if (op == OP_PATH_START) {
+				storageRoot = getStorageRoot(
+					stateRoot, 
+					address(uint160(_toUint256(stack[--stackIndex]))), 
+					proofs[outputIndex].stateTrieWitness
+				);
+			} else if (op == OP_PATH_END) {
+				outputs[outputIndex] = proveOutput(
+					storageRoot, 
+					proofs[outputIndex].storageProofs, 
+					slot, 
+					uint8(req.ops[i++])
+				);
+				slot = 0;
+				outputIndex++;
+			} else if (op == OP_PUSH) {
+				stack[stackIndex++] = abi.encodePacked(req.inputs[uint8(req.ops[i++])]);
+			} else if (op == OP_PUSH_BYTE) {
+				stack[stackIndex++] = abi.encode(uint8(req.ops[i++]));
+			} else if (op == OP_PUSH_OUTPUT) {
+				stack[stackIndex++] = abi.encodePacked(outputs[uint8(req.ops[i++])]);
+			} else if (op == OP_SLOT_ADD) {
+				slot += _toUint256(stack[--stackIndex]);
+			} else if (op == OP_SLOT_FOLLOW) {
+				slot = uint256(keccak256(abi.encodePacked(stack[--stackIndex], slot)));
+			} else if (op == OP_STACK_SLICE) {
+				bytes memory v = stack[stackIndex-1];
+				uint256 x = uint8(req.ops[i++]);
+				uint256 n = uint8(req.ops[i++]);
+				if (v.length < x + n) revert Invalid();
+				assembly {
+					v := add(v, x)
+					mstore(v, n)
+				}
+				stack[stackIndex-1] = v;
 			} else {
-				revert UnknownOpcode(op);
+				revert Invalid();
 			}
 		}
 	}
 
-    function getDynamicValue(bytes32 storageRoot, uint256 slot, StateProof memory proof, uint256 proofIdx) private pure returns(bytes memory value, uint256 newProofIdx) {
-        uint256 firstValue = uint256(getFixedValue(storageRoot, slot, proof.storageProofs[proofIdx++]));
-        if(firstValue & 0x01 == 0x01) {
-            // Long value: first slot is `length * 2 + 1`, following slots are data.
-            uint256 length = (firstValue - 1) / 2;
-            value = "";
-            slot = uint256(keccak256(abi.encodePacked(slot)));
-            // This is horribly inefficient - O(n^2). A better approach would be to build an array of words and concatenate them
-            // all at once, but we're trying to avoid writing new library code.
-            while(length > 0) {
-                if(length < 32) {
-                    value = bytes.concat(value, getSingleStorageProof(storageRoot, slot++, proof.storageProofs[proofIdx++]).slice(0, length));
-                    length = 0;
-                } else {
-                    value = bytes.concat(value, getSingleStorageProof(storageRoot, slot++, proof.storageProofs[proofIdx++]));
-                    length -= 32;
-                }
-            }
-            return (value, proofIdx);
-        } else {
-            // Short value: least significant byte is `length * 2`, other bytes are data.
-			uint256 length = (firstValue & 0xFF) / 2;
-			return (abi.encode(firstValue).slice(0, length), proofIdx);
-        }
-    }
-
-    function getStorageValues(address target, bytes32[] memory commands, bytes[] memory constants, bytes32 stateRoot, StateProof memory proof) internal pure returns(bytes[] memory values) {
-        bytes32 storageRoot = getStorageRoot(stateRoot, target, proof.stateTrieWitness);
-        uint256 proofIdx = 0;
-        values = new bytes[](commands.length);
-        for(uint256 i = 0; i < commands.length; i++) {
-            bytes32 command = commands[i];
-            (bool isDynamic, uint256 slot) = computeFirstSlot(command, constants, values);
-            if(!isDynamic) {
-                values[i] = abi.encode(getFixedValue(storageRoot, slot, proof.storageProofs[proofIdx++]));
-                if(values[i].length > 32) {
-                    revert InvalidSlotSize(values[i].length);
-                }
-            } else {
-                (values[i], proofIdx) = getDynamicValue(storageRoot, slot, proof, proofIdx);
-            }
-        }
-    }
 }

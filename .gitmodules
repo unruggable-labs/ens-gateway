@@ -19,3 +19,4 @@
 [submodule "lib/OffchainNext.sol"]
 	path = lib/OffchainNext.sol
 	url = https://github.com/resolverworks/OffchainNext.sol
+	branch = main

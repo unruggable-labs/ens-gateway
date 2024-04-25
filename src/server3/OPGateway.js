@@ -1,7 +1,7 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
 import {SmartCache} from '../SmartCache.js';
-import {Expander} from '../evm-storage.js';
+import {MultiExpander} from '../MultiExpander.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
@@ -25,7 +25,8 @@ export class OPGateway extends EZCCIP {
 		], provider1);
 		this.call_cache = new SmartCache({max_cached: 100});
 		this.output_cache = new SmartCache({ms: 60*60000, max_cached: 10});
-		this.register(`fetch(bytes context, uint16 outputs, bytes ops, bytes[] inputs) external pure returns (bytes memory witness)`, async ([index, outputs, ops, inputs], context, history) => {
+		this.register(`fetch(bytes context, uint16 expected, bytes ops, bytes[] inputs) external pure`, async ([index, expected, ops, inputs], context, history) => {
+			if (expected > 4) throw Object.assign(new Error('too many outputs'), {expected}); 
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
 			return this.call_cache.get(hash, async () => {
@@ -33,19 +34,17 @@ export class OPGateway extends EZCCIP {
 				let latest = await this.output_cache.get('LATEST', () => this.L2OutputOracle.latestOutputIndex().then(Number));
 				if (index < latest - this.output_cache.max_cached) throw new Error('too old');
 				let output = await this.output_cache.get(index, x => this.fetch_output(x));
-				let slots = await new MultiExpander(this.provider2, output.block, block_cache.slot_cache).expand(outputs, ops, inputs);
-				let proofs = await Promise.all(slots.map(([target, slots]) => this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), node.block])));
-				let witness = ABI_CODER.encode(
+				let expander = new MultiExpander(this.provider2, output.block, ops, inputs, block_cache.slot_cache);
+				let outputs = await expander.eval(ops, inputs);
+				if (outputs.length != expected) throw Object.assign(new Error('output mismatch', {outputs, expected}));
+				let proofs = await expander.prove(output);
+				return ABI_CODER.encode(
 					[
 						'tuple(bytes32 version, bytes32 stateRoot, bytes32 messagePasserStorageRoot, bytes32 latestBlockhash)',
-						'tuple(bytes[] stateTrieWitness, bytes[][] storageProofs)',
+						'tuple(bytes[] stateTrieWitness, bytes[][] storageProofs)[]',
 					],
-					[
-						[ethers.ZeroHash, output.stateRoot, output.passerRoot, output.blockHash],
-						proofs.map(p => [p.accountProof, p.storageProof.map(x => x.proof)])
-					]
+					[[ethers.ZeroHash, output.stateRoot, output.passerRoot, output.blockHash], proofs]
 				);
-				return ABI_CODER.encode(['bytes'], [witness]);
 			});
 		});
 	}
