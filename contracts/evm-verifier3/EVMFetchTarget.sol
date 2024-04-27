@@ -1,12 +1,16 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.23;
 
 import {GatewayRequest} from "./GatewayRequest.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";
 import {EVMFetcher} from "./EVMFetcher.sol";
-import {OffchainNext} from "@resolverworks/OffchainNext-contracts/src/OffchainNext.sol";
+//import {OffchainNext} from "@resolverworks/OffchainNext-contracts/src/OffchainNext.sol";
+error OffchainLookup(address from, string[] urls, bytes request, bytes4 callback, bytes carry);
 
-abstract contract EVMFetchTarget is OffchainNext {
+import "forge-std/console2.sol";
+
+//abstract contract EVMFetchTarget is OffchainNext {
+abstract contract EVMFetchTarget {
 
 	struct Session {
 		IEVMVerifier verifier;
@@ -18,7 +22,7 @@ abstract contract EVMFetchTarget is OffchainNext {
 
 	function fetch(IEVMVerifier verifier, GatewayRequest memory req, bytes4 callback, bytes memory carry) internal view {
 		(string[] memory urls, bytes memory context) = verifier.getStorageContext();
-		offchainLookup(
+		revert OffchainLookup(
 			address(this),
 			urls,
 			EVMFetcher.encode(req, context),
@@ -29,11 +33,18 @@ abstract contract EVMFetchTarget is OffchainNext {
 
 	function fetchCallback(bytes calldata response, bytes calldata carry) external view {
 		Session memory ses = abi.decode(carry, (Session));
-		bytes[] memory values = ses.verifier.getStorageValues(ses.context, ses.req, response);
+		bytes[] memory values = ses.verifier.getStorageValues(ses.context, ses.req, abi.decode(response, (bytes)));
+		(bool ok, bytes memory ret) = address(this).staticcall(abi.encodeWithSelector(ses.callback, values, ses.carry));
+		/*
 		//if (values.length != expected) revert OffchainTryNext();
 		(bool ok, bytes memory ret) = address(this).staticcall(abi.encodeWithSelector(ses.callback, values, ses.carry));
 		if (!ok) revert OffchainTryNext();
-		assembly { return(add(ret, 32), mload(ret)) }
+		*/
+		if (ok) {
+			assembly { return(add(ret, 32), mload(ret)) }
+		} else {
+			assembly { revert(add(ret, 32), mload(ret)) }
+		}
 	}
 
 }

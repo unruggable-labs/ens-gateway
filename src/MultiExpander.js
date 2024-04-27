@@ -21,7 +21,7 @@ export class MultiExpander {
 	async getStorage(target, slot) {
 		slot = ethers.toBeHex(slot);
 		if (this.cache) {
-			return this.cache.get(`${target}:${slot}`, () => this.provider.getStorage(this.target, slot, this.block));
+			return this.cache.get(`${target}:${slot}`, () => this.provider.getStorage(target, slot, this.block));
 		} else {
 			return this.provider.getStorage(target, slot, this.block);
 		}
@@ -38,14 +38,15 @@ export class MultiExpander {
 			output.slots.forEach(x => bucket.set(x, null));
 		}
 		await Promise.all(Array.from(targets, async ([target, bucket]) => {
-			let keys = [...bucket.keys()];
-			let proof = await this.provider.send('eth_getProof', [target, keys.map(x => ethers.toBeHex(x)), this.block]);
+			let slots = [...bucket.keys()];
+			let proof = await this.provider.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), this.block]);
 			bucket.proof = proof.accountProof;
-			keys.forEach((key, i) => bucket.set(key, proof.storageProof[i].proof));
+			slots.forEach((key, i) => bucket.set(key, proof.storageProof[i].proof));
 		}));
 		return outputs.map(output => [output.bucket.proof, output.slots.map(x => output.bucket.get(x))]);
 	}
 	async eval(ops, inputs) {
+		console.log({ops, inputs});
 		let pos = 0;
 		let slot = 0n;
 		let target;
@@ -131,17 +132,17 @@ export class MultiExpander {
 				value: () => p
 			};
 		}
-		let count = (parseInt(first) - 1) >> 1;
+		let count = parseInt(first) >> 1;
 		size = count * step;
 		if (size > this.max_bytes) throw Object.assign(new Error('value overflow'), {size, max: this.max_bytes});
 		let offset = BigInt(ethers.solidityPackedKeccak256(['uint256'], [slot]));
 		let slots = [slot, ...Array.from({length: (size + 31) >> 5}, (_, i) => offset + BigInt(i))];
-		const getStorage = this.getStorage.bind(this);
+		const getStorage = this.getStorage.bind(this, target);
 		return {
 			target,
 			slots,
 			value() {
-				let p = Promise.all(this.slots.slice(1).map(x => getStorage(target, x))).then(v => {
+				let p = Promise.all(this.slots.slice(1).map(getStorage)).then(v => {
 					return ethers.dataSlice(ethers.concat(v), 0, size);
 				});
 				this.value = () => p;

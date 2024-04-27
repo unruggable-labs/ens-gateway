@@ -2,6 +2,7 @@ import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
 import {SmartCache} from '../SmartCache.js';
 import {MultiExpander} from '../MultiExpander.js';
+//import {compress_outputs} from '../compress.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
@@ -25,8 +26,8 @@ export class OPGateway extends EZCCIP {
 		], provider1);
 		this.call_cache = new SmartCache({max_cached: 100});
 		this.output_cache = new SmartCache({ms: 60*60000, max_cached: 10});
-		this.register(`fetch(bytes context, uint16 expected, bytes ops, bytes[] inputs) external pure`, async ([index, expected, ops, inputs], context, history) => {
-			if (expected > 4) throw Object.assign(new Error('too many outputs'), {expected}); 
+		this.register(`fetch(bytes context, tuple(uint256 outputs, bytes ops, bytes[] inputs)) returns (bytes)`, async ([index, {outputs, ops, inputs}], context, history) => {
+			if (outputs > 32) throw Object.assign(new Error('too many outputs'), {outputs}); 
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
 			return this.call_cache.get(hash, async () => {
@@ -34,17 +35,21 @@ export class OPGateway extends EZCCIP {
 				let latest = await this.output_cache.get('LATEST', () => this.L2OutputOracle.latestOutputIndex().then(Number));
 				if (index < latest - this.output_cache.max_cached) throw new Error('too old');
 				let output = await this.output_cache.get(index, x => this.fetch_output(x));
-				let expander = new MultiExpander(this.provider2, output.block, ops, inputs, block_cache.slot_cache);
-				let outputs = await expander.eval(ops, inputs);
-				if (outputs.length != expected) throw Object.assign(new Error('output mismatch', {outputs, expected}));
-				let proofs = await expander.prove(output);
-				return ABI_CODER.encode(
+				let expander = new MultiExpander(this.provider2, output.block, output.slot_cache);
+				let values = await expander.eval(ethers.getBytes(ops), inputs);
+				if (values.length != outputs) throw Object.assign(new Error('output mismatch', {values, outputs}));
+				//let [nodes, parts] = compress_outputs(await expander.prove(values));
+				let proofs = await expander.prove(values);
+				let witness = ABI_CODER.encode(
 					[
+						// OutputRootProof
 						'tuple(bytes32 version, bytes32 stateRoot, bytes32 messagePasserStorageRoot, bytes32 latestBlockhash)',
+						// StateProof[]
 						'tuple(bytes[] stateTrieWitness, bytes[][] storageProofs)[]',
 					],
 					[[ethers.ZeroHash, output.stateRoot, output.passerRoot, output.blockHash], proofs]
 				);
+				return [witness];
 			});
 		});
 	}

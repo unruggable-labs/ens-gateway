@@ -5,12 +5,12 @@ import {GatewayRequest} from "./EVMFetcher.sol";
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {SecureMerkleTrie} from "../trie-with-nonexistance/SecureMerkleTrie.sol";
 
+import "forge-std/console2.sol";
+
 struct StateProof {
     bytes[] stateTrieWitness;         // Witness proving the `storageRoot` against a state root.
     bytes[][] storageProofs;          // An array of proofs of individual storage elements 
 }
-
-uint8 constant FLAG_DYNAMIC = 0x01;
 
 uint8 constant OP_PATH_START = 1;
 uint8 constant OP_PATH_END = 9;
@@ -69,12 +69,7 @@ library EVMProofHelper {
     }
 
     function getStorage(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (uint256) {
-        //bytes memory value = getSingleStorageProof(storageRoot, slot, witness);
-        // RLP encoded storage slots are stored without leading 0 bytes.
-        // Casting to bytes32 appends trailing 0 bytes, so we have to bit shift to get the 
-        // original fixed-length representation back.
-        //return bytes32(value) >> (256 - 8 * value.length);
-		return _toUint256(getSingleStorageProof(storageRoot, slot, witness));
+        return _toUint256(getSingleStorageProof(storageRoot, slot, witness));
     }
 
 	function proveOutput(bytes32 storageRoot, bytes[][] memory storageProofs, uint256 slot, uint256 step) internal pure returns (bytes memory v) {
@@ -84,17 +79,20 @@ library EVMProofHelper {
 		if (step == 1 && (first & 1) == 0) {
 			size = (first & 0xFF) >> 1;
 			v = new bytes(size);
-			if (size > 0) assembly { mstore(add(v, 32), shl(sub(32, size), first)) }
-		}
-		first >>= 1;
-		size = first * step;
-		slot = uint256(keccak256(abi.encode(slot)));
-		v = new bytes(size);
-		uint256 i;
-		while (i < first) {
-			i += 1;
-			uint256 value = getStorage(storageRoot, slot, storageProofs[i]);
-			assembly { mstore(add(v, shl(5, i)), value) }
+			if (size > 0) assembly { mstore(add(v, 32), first) }
+		} else {
+			first >>= 1;
+			size = first * step;
+			first = (size + 31) >> 5;
+			slot = uint256(keccak256(abi.encode(slot)));
+			v = new bytes(size);
+			uint256 i;
+			while (i < first) {
+				i += 1;
+				uint256 value = getStorage(storageRoot, slot, storageProofs[i]);
+				assembly { mstore(add(v, shl(5, i)), value) }
+				slot += 1;
+			}
 		}
 	}
 
@@ -104,8 +102,8 @@ library EVMProofHelper {
 
 	function getStorageValues(GatewayRequest memory req, bytes32 stateRoot, StateProof[] memory proofs) internal pure returns(bytes[] memory outputs) {
 		outputs = new bytes[](req.outputs);
-		uint256 slot;
 		bytes[] memory stack = new bytes[](16);
+		uint256 slot;
 		uint256 stackIndex;
 		uint256 outputIndex;
 		bytes32 storageRoot;

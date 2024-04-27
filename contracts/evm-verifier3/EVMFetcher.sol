@@ -4,8 +4,8 @@ pragma solidity ^0.8.17;
 import {GatewayRequest} from "./GatewayRequest.sol";
 
 uint256 constant MAX_OPS = 256;
-uint16 constant MAX_INPUTS = 32;
-uint16 constant MAX_OUTPUTS = 256;
+uint8 constant MAX_INPUTS = 32;
+uint8 constant MAX_OUTPUTS = 255;
 
 uint8 constant OP_PATH_START  = 1;
 uint8 constant OP_PATH_END    = 9;
@@ -18,12 +18,7 @@ uint8 constant OP_PUSH_OUTPUT     = 8;
 uint8 constant OP_STACK_SLICE = 10;
 
 interface GatewayAPI {
-	function fetch(
-		bytes memory context, 
-		uint256 outputs, 
-		bytes memory ops, 
-		bytes[] memory inputs
-	) external pure returns (bytes memory witness);
+	function fetch(bytes memory context, GatewayRequest memory req) external pure returns (bytes memory witness);
 }
 
 library EVMFetcher {
@@ -39,6 +34,11 @@ library EVMFetcher {
 		}
 		return GatewayRequest(0, ops, inputs);
 	}
+	function encode(GatewayRequest memory req, bytes memory context) internal pure returns (bytes memory) {
+		return abi.encodeCall(GatewayAPI.fetch, (context, req));
+	}
+
+
 	function addOp(GatewayRequest memory req, uint8 op) internal pure {
 		unchecked {
 			bytes memory v = req.ops;
@@ -50,7 +50,7 @@ library EVMFetcher {
 			}
 		}
 	}
-	function addConst(GatewayRequest memory req, bytes memory v) internal pure returns (uint8 ci) {
+	function addInput(GatewayRequest memory req, bytes memory v) internal pure returns (uint8 ci) {
 		unchecked {
 			bytes[] memory m = req.inputs;
 			uint256 n = m.length + 1;
@@ -77,11 +77,6 @@ library EVMFetcher {
 		addOp(req, OP_PUSH_OUTPUT);
 		addOp(req, oi);
 	}
-	function slice(GatewayRequest memory req, uint8 a, uint8 n) internal pure {
-		addOp(req, OP_STACK_SLICE);
-		addOp(req, a);
-		addOp(req, n);
-	}
 	function push(GatewayRequest memory req, uint256 x) internal pure { 
 		if (x < 256) {
 			addOp(req, OP_PUSH_BYTE);
@@ -94,7 +89,7 @@ library EVMFetcher {
 	function push(GatewayRequest memory req, bytes32 x) internal pure { push(req, abi.encode(x)); }
 	function push(GatewayRequest memory req, bytes memory v) internal pure {
 		addOp(req, OP_PUSH);
-		addOp(req, addConst(req, v));
+		addOp(req, addInput(req, v));
 	}
 	function input(GatewayRequest memory req, uint8 ci) internal pure {
 		addOp(req, OP_PUSH);
@@ -113,9 +108,10 @@ library EVMFetcher {
 		addOp(req, OP_STACK_KECCAK);
 		addOp(req, n);
 	}
-
-	function encode(GatewayRequest memory req, bytes memory context) internal pure returns (bytes memory) {
-		return abi.encodeCall(GatewayAPI.fetch, (context, req.outputs, req.ops, req.inputs));
+	function slice(GatewayRequest memory req, uint8 a, uint8 n) internal pure {
+		addOp(req, OP_STACK_SLICE);
+		addOp(req, a);
+		addOp(req, n);
 	}
 
 }
