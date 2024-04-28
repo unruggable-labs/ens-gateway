@@ -5,13 +5,20 @@ import "./GatewayRequest.sol";
 
 library EVMFetcher {
 
+	// notes:
+	// * the limits are very high so Overflow() is unlikely
+	// * the typical fetch request is incredibly small relative to the proof
+	//     so there's no need for data-saving operations (like PUSH_BYTE)
+	// * currently, inputs are not embedded into the ops buffer, 
+	//     but they could be to further simplify the protocol
+
 	error Overflow();
 
 	function create() internal pure returns (GatewayRequest memory) {
 		bytes memory ops = new bytes(MAX_OPS);
 		bytes[] memory inputs =  new bytes[](MAX_INPUTS);
 		assembly {
-			mstore(ops, 1)
+			mstore(ops, 1) // the first byte is the number of outputs
 			mstore(inputs, 0)
 		}
 		return GatewayRequest(ops, inputs);
@@ -19,7 +26,6 @@ library EVMFetcher {
 	function encode(GatewayRequest memory req, bytes memory context) internal pure returns (bytes memory) {
 		return abi.encodeCall(GatewayAPI.fetch, (context, req));
 	}
-
 
 	function addOp(GatewayRequest memory req, uint8 op) internal pure {
 		unchecked {
@@ -44,14 +50,14 @@ library EVMFetcher {
 			}
 		}
 	}
-	function start(GatewayRequest memory req) internal pure {
+	
+	// path operations
+	function start(GatewayRequest memory req) internal pure returns (uint8 oi) {
 		unchecked {
 			bytes memory v = req.ops;
-			uint256 word;
-			assembly { word := mload(add(v, 1)) }
-			if ((word & 0xFF) >= MAX_OUTPUTS) revert Overflow();
-			assembly { mstore(add(v, 1), add(word, 1)) }
-			//if (req.outputs > MAX_OUTPUTS) revert Overflow();
+			oi = uint8(v[0]);
+			if (oi == MAX_OUTPUTS) revert Overflow();
+			v[0] = bytes1(oi + 1);
 			addOp(req, OP_PATH_START);
 		}
 	}
@@ -59,19 +65,17 @@ library EVMFetcher {
 		addOp(req, OP_PATH_END);
 		addOp(req, size);
 	}
-	function output(GatewayRequest memory req, uint8 oi) internal pure {
-		addOp(req, OP_PUSH_OUTPUT);
-		addOp(req, oi);
+	
+	// slot operations
+	function follow(GatewayRequest memory req) internal pure {
+		addOp(req, OP_SLOT_FOLLOW);
 	}
-	function push(GatewayRequest memory req, uint256 x) internal pure { 
-		// if (x < 256) {
-		// 	addOp(req, OP_PUSH_BYTE);
-		// 	addOp(req, uint8(x));
-		// } else {
-		// 	push(req, abi.encode(x)); 
-		// }
-		push(req, abi.encode(x)); 
+	function add(GatewayRequest memory req) internal pure {
+		addOp(req, OP_SLOT_ADD);
 	}
+
+	// stack operations
+	function push(GatewayRequest memory req, uint256 x) internal pure { push(req, abi.encode(x)); }
 	function push(GatewayRequest memory req, address x) internal pure { push(req, abi.encode(x)); }
 	function push(GatewayRequest memory req, bytes32 x) internal pure { push(req, abi.encode(x)); }
 	function push(GatewayRequest memory req, bytes memory v) internal pure {
@@ -82,11 +86,9 @@ library EVMFetcher {
 		addOp(req, OP_PUSH);
 		addOp(req, ci);
 	}
-	function follow(GatewayRequest memory req) internal pure {
-		addOp(req, OP_SLOT_FOLLOW);
-	}
-	function add(GatewayRequest memory req) internal pure {
-		addOp(req, OP_SLOT_ADD);
+	function output(GatewayRequest memory req, uint8 oi) internal pure {
+		addOp(req, OP_PUSH_OUTPUT);
+		addOp(req, oi);
 	}
 	function slice(GatewayRequest memory req, uint8 a, uint8 n) internal pure {
 		addOp(req, OP_STACK_SLICE);

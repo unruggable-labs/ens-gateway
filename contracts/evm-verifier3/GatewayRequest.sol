@@ -25,3 +25,5 @@ struct GatewayRequest {
 interface GatewayAPI {
 	function fetch(bytes memory context, GatewayRequest memory req) external pure returns (bytes memory witness);
 }
+
+error AccountNotFound(address);

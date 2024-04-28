@@ -14,8 +14,7 @@ struct StateProof {
 
 library EVMProofHelper {
 
-	error AccountNotFound(address);
-	error Invalid();
+	error InvalidGatewayRequest();
 
 	/**
 	* @notice Get the storage root for the provided merkle proof
@@ -127,7 +126,7 @@ library EVMProofHelper {
 				bytes memory v = stack[stackIndex-1];
 				uint256 x = uint8(req.ops[i++]);
 				uint256 n = uint8(req.ops[i++]);
-				if (v.length < x + n) revert Invalid();
+				if (v.length < x + n) revert InvalidGatewayRequest();
 				assembly {
 					v := add(v, x)
 					mstore(v, n)
@@ -139,7 +138,7 @@ library EVMProofHelper {
 				stack[stackIndex-2] = abi.encodePacked(stack[stackIndex-2], stack[stackIndex-1]);
 				--stackIndex;
 			} else {
-				revert Invalid();
+				revert InvalidGatewayRequest();
 			}
 		}
 	}
