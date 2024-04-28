@@ -7,8 +7,6 @@ import {EVMFetcher} from "./EVMFetcher.sol";
 //import {OffchainNext} from "@resolverworks/OffchainNext-contracts/src/OffchainNext.sol";
 error OffchainLookup(address from, string[] urls, bytes request, bytes4 callback, bytes carry);
 
-import "forge-std/console2.sol";
-
 //abstract contract EVMFetchTarget is OffchainNext {
 abstract contract EVMFetchTarget {
 

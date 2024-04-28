@@ -16,22 +16,53 @@ contract MultiTargetDemo is EVMFetchTarget {
 		verifier = IEVMVerifier(_verifier);
 	}
 
-	function multi() external view returns (bytes32 a, bytes32 b, string memory c, address d, string memory e) {
+	address constant TEAMNICK_POINTER = 0x0f1449C980253b576aba379B11D453Ac20832a89;
+
+	function teamnick() external view returns (bytes32, bytes32, string memory, address, string memory) {
 		GatewayRequest memory r = EVMFetcher.create();
-		r.push(0x0f1449C980253b576aba379B11D453Ac20832a89); r.start(); r.end(0);
+		uint256 token = uint256(keccak256(bytes("raffy")));
+		r.push(TEAMNICK_POINTER); r.start(); r.end(0);
 		r.output(0); r.start(); r.push(8); r.add(); r.end(0);
 		r.output(0); r.start(); r.push(9); r.add(); r.end(1);
-		r.output(0); r.start(); r.push(7); r.add(); r.push(uint256(keccak256(bytes("raffy")))); r.follow(); r.end(0);
-		r.output(0); r.start(); r.push(7); r.add(); r.push(uint256(keccak256(bytes("raffy")))); r.follow(); r.push(1); r.add(); r.end(1);
-		fetch(verifier, r, this.multiCallback.selector, '');
+		r.output(0); r.start(); r.push(7); r.add(); r.push(token); r.follow(); r.end(0);
+		r.output(0); r.start(); r.push(7); r.add(); r.push(token); r.follow(); r.push(1); r.add(); r.end(1);
+		fetch(verifier, r, this.teamnickCallback.selector, '');
 	}
 
-	function multiCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes32 a, bytes32 b, string memory c, address d, string memory e) {
+	function teamnickCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes32 a, bytes32 b, string memory c, bytes32 d, string memory e) {
 		a = bytes32(values[0]);
 		b = bytes32(values[1]);
 		c = string(values[2]);
-		d = address(uint160(uint256(bytes32(values[3]))));
+		d = bytes32(values[3]); //address(uint160(uint256(bytes32(values[3]))));
 		e = string(values[4]);
+	}
+
+	address constant CYPHER_NFT = 0xEC2244b547BD782FC7DeefC6d45E0B3a3cbD488d;
+	uint256 constant SLOT_OWNERS  =  2; // mapping(uint256 tokenId => address) private _owners;
+	uint256 constant SLOT_SUPPLY  =  7;
+	uint256 constant SLOT_TEXTS   = 10; // mapping(bytes32 => mapping(string => string)) _texts;
+	uint256 constant SLOT_ADDRS   = 11; // mapping(bytes32 => mapping(uint256 => bytes)) _addrs;
+	uint256 constant SLOT_CHASHES = 12; // mapping(bytes32 => bytes) _chashes;
+	uint256 constant SLOT_NAMES   = 13; // mapping(uint256 => string) _names;
+
+	function cypher() external view returns (address, bytes memory, string memory) {
+		GatewayRequest memory r = EVMFetcher.create();
+		uint256 token = uint256(keccak256(bytes("slobo")));
+		r.push(CYPHER_NFT); r.start(); 
+			r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); r.end(0);
+		r.push(CYPHER_NFT); r.start();
+			r.push(SLOT_ADDRS); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
+			r.push(60); r.follow(); r.end(1);
+		r.push(CYPHER_NFT); r.start();
+			r.push(SLOT_TEXTS); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
+			r.push(bytes("com.twitter")); r.follow(); r.end(1);
+		fetch(verifier, r, this.cypherCallback.selector, '');
+	}
+
+	function cypherCallback(bytes[] calldata values, bytes calldata) external pure returns (bytes32 owner, bytes memory addr60, bytes memory twitter) {
+		owner = bytes32(values[0]);
+		addr60 = values[1];
+		twitter = values[2];
 	}
 
 } 

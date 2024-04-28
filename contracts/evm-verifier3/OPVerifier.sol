@@ -4,9 +4,12 @@ pragma solidity ^0.8.23;
 import {GatewayRequest} from "./GatewayRequest.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";
 import {EVMProofHelper, StateProof} from "./EVMProofHelper.sol";
+
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {Types} from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
 import {Hashing} from "../forge-import-bug/Hashing.sol";
+
+import "forge-std/console2.sol";
 
 interface IL2OutputOracle {
 	function latestOutputIndex() external view returns (uint256);
@@ -14,9 +17,6 @@ interface IL2OutputOracle {
 }
 
 contract OPVerifier is IEVMVerifier {
-
-	error OutputRootMismatch(uint256 outputIndex, bytes32 expected, bytes32 actual);
-	error OutputValuesMismatch(uint256 expected, uint256 actual);
 
 	string[] public gatewayURLs;
 	IL2OutputOracle immutable oracle;
@@ -33,15 +33,23 @@ contract OPVerifier is IEVMVerifier {
 		context = abi.encode(oracle.latestOutputIndex() - delay);
 	}
 
-	function getStorageValues(bytes memory context, GatewayRequest memory req, bytes memory proof) external view returns(bytes[] memory values) {
+	function getStorageValues(bytes memory context, GatewayRequest memory req, bytes memory proof) external view returns (bytes[] memory) {
 		uint256 outputIndex = abi.decode(context, (uint256));
-		(Types.OutputRootProof memory outputRootProof, StateProof[] memory stateProofs) = abi.decode(proof, (Types.OutputRootProof, StateProof[]));
-		if (req.outputs != stateProofs.length) revert OutputValuesMismatch(req.outputs, stateProofs.length);
+		(
+			Types.OutputRootProof memory outputRootProof, 
+			bytes[][] memory accountProofs, 
+			StateProof[] memory stateProofs
+		) = abi.decode(proof, (Types.OutputRootProof, bytes[][], StateProof[]));
+		uint256 outputCount = uint8(req.ops[0]);
+		if (outputCount != stateProofs.length) {
+			revert OutputValuesMismatch(outputCount, stateProofs.length);
+		}
 		Types.OutputProposal memory output = oracle.getL2Output(outputIndex);
 		bytes32 expectedRoot = Hashing.hashOutputRootProof(outputRootProof);
-		if (output.outputRoot != expectedRoot) revert OutputRootMismatch(outputIndex, expectedRoot, output.outputRoot);
-		values = EVMProofHelper.getStorageValues(req, outputRootProof.stateRoot, stateProofs);
-		if (req.outputs != values.length) revert OutputValuesMismatch(req.outputs, values.length);
+		if (output.outputRoot != expectedRoot) {
+			revert OutputRootMismatch(context, expectedRoot, output.outputRoot);
+		}
+		return EVMProofHelper.getStorageValues(req, expectedRoot, accountProofs, stateProofs);
 	}
 
 }

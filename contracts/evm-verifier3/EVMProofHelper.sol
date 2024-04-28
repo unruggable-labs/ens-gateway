@@ -1,76 +1,65 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {GatewayRequest} from "./EVMFetcher.sol";
+import "./GatewayRequest.sol";
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {SecureMerkleTrie} from "../trie-with-nonexistance/SecureMerkleTrie.sol";
 
 import "forge-std/console2.sol";
 
 struct StateProof {
-    bytes[] stateTrieWitness;         // Witness proving the `storageRoot` against a state root.
-    bytes[][] storageProofs;          // An array of proofs of individual storage elements 
+	uint256 accountIndex;
+	bytes[][] storageProofs;
 }
-
-uint8 constant OP_PATH_START = 1;
-uint8 constant OP_PATH_END = 9;
-uint8 constant OP_PUSH = 3;
-uint8 constant OP_PUSH_OUTPUT = 8;
-uint8 constant OP_PUSH_BYTE = 7;
-uint8 constant OP_SLOT_ADD = 4;
-uint8 constant OP_SLOT_FOLLOW = 5;
-uint8 constant OP_STACK_KECCAK = 6;
-uint8 constant OP_STACK_SLICE = 10;
-
 
 library EVMProofHelper {
 
-    error AccountNotFound(address);
-    error Invalid();
+	error AccountNotFound(address);
+	error Invalid();
 
-    /**
-     * @notice Get the storage root for the provided merkle proof
-     * @param stateRoot The state root the witness was generated against
-     * @param target The address we are fetching a storage root for
-     * @param witness A witness proving the value of the storage root for `target`.
-     * @return The storage root retrieved from the provided state root
-     */
-    function getStorageRoot(bytes32 stateRoot, address target, bytes[] memory witness) private pure returns (bytes32) {
-        (bool exists, bytes memory encodedResolverAccount) = SecureMerkleTrie.get(
-            abi.encodePacked(target),
-            witness,
-            stateRoot
-        );
-        if(!exists) {
-            revert AccountNotFound(target);
-        }
-        RLPReader.RLPItem[] memory accountState = RLPReader.readList(encodedResolverAccount);
-        return bytes32(RLPReader.readBytes(accountState[2]));
-    }
+	/**
+	* @notice Get the storage root for the provided merkle proof
+	* @param stateRoot The state root the witness was generated against
+	* @param target The address we are fetching a storage root for
+	* @param witness A witness proving the value of the storage root for `target`.
+	* @return The storage root retrieved from the provided state root
+	*/
+	function getStorageRoot(bytes32 stateRoot, address target, bytes[] memory witness) private pure returns (bytes32) {
+		(bool exists, bytes memory encodedResolverAccount) = SecureMerkleTrie.get(
+			abi.encodePacked(target),
+			witness,
+			stateRoot
+		);
+		if(!exists) {
+			revert AccountNotFound(target);
+		}
+		RLPReader.RLPItem[] memory accountState = RLPReader.readList(encodedResolverAccount);
+		return bytes32(RLPReader.readBytes(accountState[2]));
+	}
 
-    /**
-     * @notice Prove whether the provided storage slot is part of the storageRoot
-     * @param storageRoot the storage root for the account that contains the storage slot
-     * @param slot The storage key we are fetching the value of
-     * @param witness the StorageProof struct containing the necessary proof data
-     * @return The retrieved storage proof value or 0x if the storage slot is empty
-     */
-    function getSingleStorageProof(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (bytes memory) {
-        (bool exists, bytes memory retrievedValue) = SecureMerkleTrie.get(
-            abi.encodePacked(slot),
-            witness,
-            storageRoot
-        );
-        if(!exists) {
-            // Nonexistent values are treated as zero.
-            return "";
-        }
-        return RLPReader.readBytes(retrievedValue);
-    }
+	/**
+	* @notice Prove whether the provided storage slot is part of the storageRoot
+	* @param storageRoot the storage root for the account that contains the storage slot
+	* @param slot The storage key we are fetching the value of
+	* @param witness the StorageProof struct containing the necessary proof data
+	* @return The retrieved storage proof value or 0x if the storage slot is empty
+	*/
+	function getSingleStorageProof(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (bytes memory) {
+		(bool exists, bytes memory retrievedValue) = SecureMerkleTrie.get(
+			abi.encodePacked(slot),
+			witness,
+			storageRoot
+		);
+		if(!exists) {
+			// Nonexistent values are treated as zero.
+			return "";
+		}
+		return RLPReader.readBytes(retrievedValue);
+	}
 
-    function getStorage(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (uint256) {
-        return _toUint256(getSingleStorageProof(storageRoot, slot, witness));
-    }
+	function getStorage(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (uint256) {
+		return _toUint256(getSingleStorageProof(storageRoot, slot, witness));
+	}
 
 	function proveOutput(bytes32 storageRoot, bytes[][] memory storageProofs, uint256 slot, uint256 step) internal pure returns (bytes memory v) {
 		uint256 first = getStorage(storageRoot, slot, storageProofs[0]);
@@ -81,10 +70,9 @@ library EVMProofHelper {
 			v = new bytes(size);
 			if (size > 0) assembly { mstore(add(v, 32), first) }
 		} else {
-			first >>= 1;
-			size = first * step;
-			first = (size + 31) >> 5;
-			slot = uint256(keccak256(abi.encode(slot)));
+			size = (first >> 1) * step; // number of bytes
+			first = (size + 31) >> 5; // rename: number of slots
+			slot = uint256(keccak256(abi.encode(slot))); // array start
 			v = new bytes(size);
 			uint256 i;
 			while (i < first) {
@@ -100,34 +88,35 @@ library EVMProofHelper {
 		return uint256(v.length < 32 ? bytes32(v) >> ((32 - v.length) << 3) : bytes32(v));
 	}
 
-	function getStorageValues(GatewayRequest memory req, bytes32 stateRoot, StateProof[] memory proofs) internal pure returns(bytes[] memory outputs) {
-		outputs = new bytes[](req.outputs);
+	function getStorageValues(GatewayRequest memory req, bytes32 stateRoot, bytes[][] memory accountProofs, StateProof[] memory stateProofs) internal pure returns(bytes[] memory outputs) {
+		//outputs = new bytes[](req.outputs);
+		outputs = new bytes[](uint8(req.ops[0]));
 		bytes[] memory stack = new bytes[](16);
 		uint256 slot;
 		uint256 stackIndex;
 		uint256 outputIndex;
 		bytes32 storageRoot;
-		for (uint256 i; i < req.ops.length; ) {
+		for (uint256 i = 1; i < req.ops.length; ) {
 			uint256 op = uint8(req.ops[i++]);
 			if (op == OP_PATH_START) {
 				storageRoot = getStorageRoot(
-					stateRoot, 
-					address(uint160(_toUint256(stack[--stackIndex]))), 
-					proofs[outputIndex].stateTrieWitness
+					stateRoot,
+					address(uint160(_toUint256(stack[--stackIndex]))),
+					accountProofs[stateProofs[outputIndex].accountIndex]
 				);
 			} else if (op == OP_PATH_END) {
 				outputs[outputIndex] = proveOutput(
-					storageRoot, 
-					proofs[outputIndex].storageProofs, 
-					slot, 
+					storageRoot,
+					stateProofs[outputIndex].storageProofs,
+					slot,
 					uint8(req.ops[i++])
 				);
 				slot = 0;
 				outputIndex++;
 			} else if (op == OP_PUSH) {
 				stack[stackIndex++] = abi.encodePacked(req.inputs[uint8(req.ops[i++])]);
-			} else if (op == OP_PUSH_BYTE) {
-				stack[stackIndex++] = abi.encode(uint8(req.ops[i++]));
+			//} else if (op == OP_PUSH_BYTE) {
+			//	stack[stackIndex++] = abi.encode(uint8(req.ops[i++]));
 			} else if (op == OP_PUSH_OUTPUT) {
 				stack[stackIndex++] = abi.encodePacked(outputs[uint8(req.ops[i++])]);
 			} else if (op == OP_SLOT_ADD) {
@@ -144,6 +133,11 @@ library EVMProofHelper {
 					mstore(v, n)
 				}
 				stack[stackIndex-1] = v;
+			} else if (op == OP_STACK_KECCAK) {
+				stack[stackIndex-1] = abi.encodePacked(keccak256(stack[stackIndex-1]));
+			} else if (op == OP_STACK_CONCAT) {
+				stack[stackIndex-2] = abi.encodePacked(stack[stackIndex-2], stack[stackIndex-1]);
+				--stackIndex;
 			} else {
 				revert Invalid();
 			}

@@ -1,14 +1,15 @@
 import {ethers} from 'ethers';
 
-const OP_PATH_START = 1;
-const OP_PATH_END = 9;
-const OP_PUSH = 3;
-const OP_PUSH_OUTPUT = 8;
-const OP_PUSH_BYTE = 7;
-const OP_SLOT_ADD = 4;
-const OP_SLOT_FOLLOW = 5;
-const OP_STACK_KECCAK = 6;
-const OP_STACK_SLICE = 10;
+const OP_PATH_START		= 1;
+const OP_PATH_END		= 2;
+const OP_PUSH			= 10;
+const OP_PUSH_OUTPUT	= 11;
+//const OP_PUSH_BYTE		= 12;
+const OP_SLOT_ADD		= 20;
+const OP_SLOT_FOLLOW	= 21;
+const OP_STACK_KECCAK	= 30;
+const OP_STACK_CONCAT   = 31;
+const OP_STACK_SLICE	= 32;
 //const OP_CONCAT = 11;
 
 export class MultiExpander {
@@ -32,6 +33,7 @@ export class MultiExpander {
 			let bucket = targets.get(output.target);
 			if (!bucket) {
 				bucket = new Map();
+				bucket.index = targets.size;
 				targets.set(output.target, bucket);
 			}
 			output.bucket = bucket;
@@ -43,7 +45,11 @@ export class MultiExpander {
 			bucket.proof = proof.accountProof;
 			slots.forEach((key, i) => bucket.set(key, proof.storageProof[i].proof));
 		}));
-		return outputs.map(output => [output.bucket.proof, output.slots.map(x => output.bucket.get(x))]);
+		return [
+			Array.from(targets.values(), x => x.proof),
+			outputs.map(output => [output.bucket.index, output.slots.map(x => output.bucket.get(x))])
+		];
+		//return outputs.map(output => [output.bucket.proof, output.slots.map(x => output.bucket.get(x))]);
 	}
 	async eval(ops, inputs) {
 		console.log({ops, inputs});
@@ -61,55 +67,65 @@ export class MultiExpander {
 			if (!stack.length) throw new Error('stack underflow');
 			return stack.pop();
 		};
+		const expected = read_byte();
 		while (pos < ops.length) {
-			let op = ops[pos++];
-			switch (op) {
-				case OP_PATH_START: {
-					target = pop_stack();
-					break;
+			try {
+				let op = ops[pos++];
+				switch (op) {
+					case OP_PATH_START: {
+						target = pop_stack();
+						break;
+					}
+					case OP_PATH_END: {
+						outputs.push(this.read_output(target, slot, read_byte()));
+						slot = 0n;
+						break;
+					}
+					case OP_PUSH: { 
+						stack.push(inputs[read_byte()]);
+						break;
+					}
+					// case OP_PUSH_BYTE: {
+					// 	stack.push(ethers.toBeHex(read_byte(), 32));
+					// 	break;
+					// }
+					case OP_PUSH_OUTPUT: {
+						stack.push(outputs[read_byte()].then(x => x.value()));
+						break;
+					}
+					case OP_SLOT_ADD: {
+						slot += ethers.toBigInt(await pop_stack());
+						break;
+					}
+					case OP_SLOT_FOLLOW: {
+						slot = BigInt(ethers.keccak256(ethers.concat([await pop_stack(), ethers.toBeHex(slot, 32)])));
+						break;
+					}
+					case OP_STACK_KECCAK: {
+						stack.push(ethers.keccak256(await pop_stack()));
+						break;
+					}
+					case OP_STACK_CONCAT: {
+						const n = 2;
+						if (stack.length < n) throw new Error('concat underflow');
+						stack.splice(stack.length-n, n, ethers.concat(await Promise.all(stack.slice(-n))));
+						break;
+					}
+					case OP_STACK_SLICE: {
+						let x = read_byte();
+						let n = read_byte();
+						stack.push(ethers.dataSlice(await pop_stack(), x, x + n));
+						break;
+					}
+					default: new Error('unknown op');
 				}
-				case OP_PATH_END: {
-					outputs.push(this.read_output(target, slot, read_byte()));
-					slot = 0n;
-					break;
-				}
-				case OP_PUSH: { 
-					stack.push(inputs[read_byte()]);
-					break;
-				}
-				case OP_PUSH_BYTE: {
-					stack.push(ethers.toBeHex(read_byte(), 32));
-					break;
-				}
-				case OP_PUSH_OUTPUT: {
-					stack.push(outputs[read_byte()].then(x => x.value()));
-					break;
-				}
-				case OP_SLOT_ADD: {
-					slot += ethers.toBigInt(await pop_stack());
-					break;
-				}
-				case OP_SLOT_FOLLOW: {
-					slot = BigInt(ethers.keccak256(ethers.concat([await pop_stack(), ethers.toBeHex(slot, 32)])));
-					break;
-				}
-				// this is concat(n) + keccak()
-				case OP_STACK_KECCAK: {
-					let take = read_byte();
-					if (take > stack.length) throw Object.assign(new Error('concat overflow'), {stack, take});
-					let hash = ethers.keccak256(ethers.concat(await Promise.all(stack.slice(-take))));
-					stack.splice(stack.length - take, take, hash);
-					break;
-				}
-				case OP_STACK_SLICE: {
-					if (!stack.length) throw new Error('slice stack underflow');
-					let x = read_byte();
-					let n = read_byte();
-					stack[stack.length-1] = ethers.dataSlice(await stack[stack.length-1], x, x + n);
-					break;
-				}
-				default: throw Object.assign(new Error('unknown op'), {op});
+			} catch (err) {
+				Object.assign(err, {op, ops, pos, inputs, stack, target, slot});
+				throw err;
 			}
+		}
+		if (outputs.length != expected) {
+			throw Object.assign(new Error('output mismatch', {values, expected}));
 		}
 		return Promise.all(outputs);
 	}

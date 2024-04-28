@@ -1,7 +1,7 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
 import {SmartCache} from '../SmartCache.js';
-import {MultiExpander} from '../evm-storage-multi.js';
+import {MultiExpander} from '../MultiExpander.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
@@ -13,7 +13,7 @@ export class Arb1Gateway extends EZCCIP {
 			...a
 		});
 	}
-	constructor({provider1, provider2, L2Rollup, expander}) {
+	constructor({provider1, provider2, L2Rollup}) {
 		super();
 		this.provider1 = provider1;
 		this.provider2 = provider2;
@@ -36,25 +36,28 @@ export class Arb1Gateway extends EZCCIP {
 		], provider1);
 		this.call_cache = new SmartCache({max_cached: 100});
 		this.node_cache = new SmartCache({ms: 60*60000, ms_error: 5000, max_cached: 10});
-		this.register(`fetch(bytes context, uint16 outputs, address[] targets, bytes ops, bytes[] consts) external view returns (bytes)`, async ([index, outputs, targets, ops, consts], context, history) => {
-			if (!outputs) throw new Error('no outputs');
-			if (!targets.length) throw new Error('no targets');
+		this.register(`fetch(bytes context, tuple(bytes ops, bytes[] inputs)) returns (bytes)`, async ([index, {ops, inputs}], context, history) => {
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
 			return this.call_cache.get(hash, async () => {
 				index = parseInt(index);
-				let latest = await this.node_cache.get('LATEST', () => this.L2Rollup.latestNodeCreated().then(Number));
-				if (index < latest - this.node_cache.max_cached) throw new Error('too old');
+				let latest = await this.latest_index();
+				if (index < latest - this.node_cache.max_cached) throw new Error('stale node');
+				if (index > latest + 1) throw new Error('future node');
 				let node = await this.node_cache.get(index, x => this.fetch_node(x));
-				let slots = await new MultiExpander(this.provider2, node.block, block_cache.slot_cache).expand(outputs, targets, ops, consts);
-				let proofs = await Promise.all(slots.map(([target, slots]) => this.provider2.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), node.block])));
+				let expander = new MultiExpander(this.provider2, node.block, node.slot_cache);
+				let values = await expander.eval(ethers.getBytes(ops), inputs);
+				let [account_proofs, state_proofs] = await expander.prove(values);
 				let witness = ABI_CODER.encode(
-					['bytes32', 'bytes', 'tuple(bytes[], bytes[][])[]'],
-					[node.sendRoot, node.rlpEncodedBlock, proofs.map(p => [p.accountProof, p.storageProof.map(x => x.proof)])]
+					['bytes32', 'bytes', 'bytes[][]', 'tuple(uint256, bytes[][])[]'],
+					[node.sendRoot, node.rlpEncodedBlock, account_proofs, state_proofs]
 				);
-				return ABI_CODER.encode(['bytes'], [witness]);
+				return [witness];
 			});
 		});
+	}
+	async latest_index() {
+		return this.node_cache.get('LATEST', () => this.L2Rollup.latestNodeCreated().then(Number));
 	}
 	async fetch_node(node) {
 		let events = await this.L2Rollup.queryFilter(this.L2Rollup.filters.NodeCreated(node));

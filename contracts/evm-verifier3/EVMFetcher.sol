@@ -1,25 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import {GatewayRequest} from "./GatewayRequest.sol";
-
-uint256 constant MAX_OPS = 256;
-uint8 constant MAX_INPUTS = 32;
-uint8 constant MAX_OUTPUTS = 255;
-
-uint8 constant OP_PATH_START  = 1;
-uint8 constant OP_PATH_END    = 9;
-uint8 constant OP_PUSH    = 3;
-uint8 constant OP_SLOT_ADD     = 4;
-uint8 constant OP_SLOT_FOLLOW  = 5;
-uint8 constant OP_STACK_KECCAK  = 6;
-uint8 constant OP_PUSH_BYTE = 7;
-uint8 constant OP_PUSH_OUTPUT     = 8;
-uint8 constant OP_STACK_SLICE = 10;
-
-interface GatewayAPI {
-	function fetch(bytes memory context, GatewayRequest memory req) external pure returns (bytes memory witness);
-}
+import "./GatewayRequest.sol";
 
 library EVMFetcher {
 
@@ -29,10 +11,10 @@ library EVMFetcher {
 		bytes memory ops = new bytes(MAX_OPS);
 		bytes[] memory inputs =  new bytes[](MAX_INPUTS);
 		assembly {
-			mstore(ops, 0)
+			mstore(ops, 1)
 			mstore(inputs, 0)
 		}
-		return GatewayRequest(0, ops, inputs);
+		return GatewayRequest(ops, inputs);
 	}
 	function encode(GatewayRequest memory req, bytes memory context) internal pure returns (bytes memory) {
 		return abi.encodeCall(GatewayAPI.fetch, (context, req));
@@ -63,9 +45,13 @@ library EVMFetcher {
 		}
 	}
 	function start(GatewayRequest memory req) internal pure {
-		unchecked { 
-			req.outputs += 1;
-			if (req.outputs > MAX_OUTPUTS) revert Overflow();
+		unchecked {
+			bytes memory v = req.ops;
+			uint256 word;
+			assembly { word := mload(add(v, 1)) }
+			if ((word & 0xFF) >= MAX_OUTPUTS) revert Overflow();
+			assembly { mstore(add(v, 1), add(word, 1)) }
+			//if (req.outputs > MAX_OUTPUTS) revert Overflow();
 			addOp(req, OP_PATH_START);
 		}
 	}
@@ -78,12 +64,13 @@ library EVMFetcher {
 		addOp(req, oi);
 	}
 	function push(GatewayRequest memory req, uint256 x) internal pure { 
-		if (x < 256) {
-			addOp(req, OP_PUSH_BYTE);
-			addOp(req, uint8(x));
-		} else {
-			push(req, abi.encode(x)); 
-		}
+		// if (x < 256) {
+		// 	addOp(req, OP_PUSH_BYTE);
+		// 	addOp(req, uint8(x));
+		// } else {
+		// 	push(req, abi.encode(x)); 
+		// }
+		push(req, abi.encode(x)); 
 	}
 	function push(GatewayRequest memory req, address x) internal pure { push(req, abi.encode(x)); }
 	function push(GatewayRequest memory req, bytes32 x) internal pure { push(req, abi.encode(x)); }
@@ -101,17 +88,16 @@ library EVMFetcher {
 	function add(GatewayRequest memory req) internal pure {
 		addOp(req, OP_SLOT_ADD);
 	}
-	// function concat(GatewayRequest memory req) internal pure {
-	// 	addOp(req, OP_CONCAT);
-	// }
- 	function keccak(GatewayRequest memory req, uint8 n) internal pure {
-		addOp(req, OP_STACK_KECCAK);
-		addOp(req, n);
-	}
 	function slice(GatewayRequest memory req, uint8 a, uint8 n) internal pure {
 		addOp(req, OP_STACK_SLICE);
 		addOp(req, a);
 		addOp(req, n);
+	}
+ 	function keccak(GatewayRequest memory req) internal pure {
+		addOp(req, OP_STACK_KECCAK);
+	}
+	function concat(GatewayRequest memory req) internal pure {
+		addOp(req, OP_STACK_CONCAT);
 	}
 
 }

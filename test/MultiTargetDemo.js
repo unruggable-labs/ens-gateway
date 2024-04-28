@@ -14,7 +14,7 @@ let verifier = await foundry.deploy({file: 'evm-verifier3/OPVerifier', args: [[c
 
 let contract = await foundry.deploy({file: 'MultiTargetDemo', args: [verifier]});
 
-console.log(await contract.multi({enableCcipRead: true}));
+console.log(await contract.teamnick({enableCcipRead: true}));
 
 foundry.shutdown();
 ccip.http.close();

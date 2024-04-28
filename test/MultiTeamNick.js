@@ -2,7 +2,6 @@ import {Foundry} from '@adraffy/blocksmith';
 import {MultiExpander} from '../src/MultiExpander.js';
 import {CHAIN_BASE, create_provider_pair} from '../src/providers.js';
 import {ethers} from 'ethers';
-import {compress_outputs} from '../src/compress.js';
 
 let {provider1, provider2} = create_provider_pair(CHAIN_BASE);
 
@@ -13,7 +12,7 @@ let foundry = await Foundry.launch();
 let contract = await foundry.deploy({sol: `
 	import {GatewayRequest} from "@src/evm-verifier3/GatewayRequest.sol";
 	import {EVMFetcher} from "@src/evm-verifier3/EVMFetcher.sol";
-	contract MultiTargetDemo {
+	contract Test {
 		using EVMFetcher for GatewayRequest;
 		function f() external pure returns (bytes memory) {
 			GatewayRequest memory r = EVMFetcher.create();
@@ -33,7 +32,7 @@ console.log({call});
 
 
 let abi = new ethers.Interface([
-	`function fetch(bytes context, tuple(uint256 outputs, bytes ops, bytes[] inputs) request)`
+	`function fetch(bytes context, tuple(bytes ops, bytes[] inputs) request)`
 ]);
 
 let res = abi.decodeFunctionData('fetch', call);
@@ -51,16 +50,21 @@ let me = new MultiExpander(provider2, block);
 
 let outputs = await me.eval(ethers.getBytes(res.request.ops), res.request.inputs);
 
-console.log({got: outputs.length, expected:  res.request.outputs});
-
 for (let output of outputs) {
 	output.value = await output.value();
 	console.log(output);
 }
 
-let [values, indexes] = compress_outputs(await me.prove(outputs));
+let [accountProofs, storageProofs] = await me.prove(outputs);
 
+console.log({
+	accounts: accountProofs.length, 
+	slots: storageProofs.map(([account, proofs]) => ({account, slots: proofs.length}))
+});
+
+/*
+let [values, indexes] = compress_outputs(await me.prove(outputs));
 console.log(values.map((x, i) => [i, (x.length - 2)>>1]));
 console.log((values.reduce((a, x) => a + x.length, 0) - 2)>>1);
 console.log(indexes);
-
+*/
