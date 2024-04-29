@@ -1,7 +1,8 @@
-import {Foundry} from '@adraffy/blocksmith';
+import {Foundry, Resolver, Node} from '@adraffy/blocksmith';
 import {serve} from '@resolverworks/ezccip';
 import {Arb1Gateway} from '../../src/server3/Arb1Gateway.js';
 import {RogueGateway} from '../../src/server3/RogueGateway.js';
+import {deploy_ens} from '../ens.js';
 import {provider_url, create_provider_pair, CHAIN_ARB1} from '../../src/providers.js';
 
 let debug = false;
@@ -21,9 +22,34 @@ let urls = [
 
 let verifier = await foundry.deploy({file: 'evm-verifier3/Arb1Verifier', args: [urls, gateway.L2Rollup]});
 
-let contract = await foundry.deploy({file: 'MultiTargetDemo', args: [verifier]});
+let ens = await deploy_ens(foundry);
+let root = Node.root();
 
-console.log(await contract.cypher({enableCcipRead: true}));
+const CYPHER_NFT = '0xEC2244b547BD782FC7DeefC6d45E0B3a3cbD488d';
+
+let cypher_resolver = await foundry.deploy({file: 'XCTENS3', args: [ens, verifier, CYPHER_NFT, CHAIN_ARB1]});
+
+let basename = await ens.$register(root.create('cypher'), {resolver: cypher_resolver});
+
+let owned_resolver = await foundry.deploy({file: 'OwnedResolver'});
+let _basename = await ens.$register(basename.create('_'), {resolver: owned_resolver});
+await foundry.confirm(owned_resolver.setText(_basename.namehash, 'url', 'https://www.cu-cypherpunk.com/'));
+
+console.log(await Resolver.get(ens, basename).then(r => r.profile([
+	{type: 'text', arg: 'url'},
+	{type: 'text', arg: 'description'},	
+	{type: 'addr', arg: 0x80000000 + CHAIN_ARB1},
+	{type: 'addr', arg: 60},
+])));
+
+console.log(await Resolver.get(ens, basename.create('slobo')).then(r => r.profile([
+	{type: 'text', arg: 'owner'},
+	{type: 'text', arg: 'com.twitter'},
+	{type: 'text', arg: 'avatar'},
+	{type: 'addr', arg: 60},
+	{type: 'addr'},
+	{type: 'addr', arg: 0x80000000 + CHAIN_ARB1}
+])));
 
 foundry.shutdown();
 ccip.http.close();
