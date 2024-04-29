@@ -131,8 +131,9 @@ export class MultiExpander {
 	}
 	async read_output(target, slot, step) {
 		target = await target;
-		if (!target || target.length > 66) throw Object.assign(new Error('invalid target'), {target});
-		target = '0x' + target.slice(-40).toLowerCase().padStart(40, '0');
+		if (!target) throw Object.assign(new Error('invalid target'), {target});
+		// address(uint160(_toUint256(stack[--stackIndex]))),
+		target = '0x' + (target.length >= 66 ? target.slice(26, 66) : target.slice(2).padStart(40, '0').slice(-40)).toLowerCase();
 		console.log({target, slot, step});
 		let first = await this.getStorage(target, slot);
 		let size = parseInt(first.slice(64), 16);

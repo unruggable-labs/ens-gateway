@@ -19,7 +19,7 @@ contract MultiTargetDemo is EVMFetchTarget2 {
 
 	address constant TEAMNICK_POINTER = 0x0f1449C980253b576aba379B11D453Ac20832a89;
 
-	function teamnick() external view returns (bytes32, bytes32, string memory, address, string memory) {
+	function teamnick() external view returns (address, uint256, string memory, address, string memory) {
 		GatewayRequest memory r = EVMFetcher.create();
 		uint256 token = uint256(keccak256(bytes("raffy")));
 		r.push(TEAMNICK_POINTER); r.start(); r.end(0);
