@@ -1,20 +1,20 @@
 import {Foundry} from '@adraffy/blocksmith';
+import {OPGateway} from '../src/server3/OPGateway.js';
 import {MultiExpander} from '../src/MultiExpander.js';
 import {CHAIN_BASE, create_provider_pair} from '../src/providers.js';
 import {ethers} from 'ethers';
 
-let {provider1, provider2} = create_provider_pair(CHAIN_BASE);
+let gateway = OPGateway.base_mainnet(create_provider_pair(CHAIN_BASE));
 
 // https://basescan.org/address/0x0f1449c980253b576aba379b11d453ac20832a89#code
 // https://basescan.org/address/0x7C6EfCb602BC88794390A0d74c75ad2f1249A17f#code
 
 let foundry = await Foundry.launch();
 let contract = await foundry.deploy({sol: `
-	import {GatewayRequest} from "@src/evm-verifier3/GatewayRequest.sol";
-	import {EVMFetcher} from "@src/evm-verifier3/EVMFetcher.sol";
+	import "@src/evm-verifier3/EVMFetcher.sol";
 	contract Test {
 		using EVMFetcher for GatewayRequest;
-		function f() external pure returns (bytes memory) {
+		function makeCall() external pure returns (bytes memory) {
 			GatewayRequest memory r = EVMFetcher.create();
 			r.push(0x0f1449C980253b576aba379B11D453Ac20832a89); r.start(); r.end(0);
 			r.output(0); r.start(); r.push(8); r.add(); r.end(0);
@@ -25,11 +25,10 @@ let contract = await foundry.deploy({sol: `
 		}
 	}
 `});
-let call = await contract.f();
+let call = await contract.makeCall();
 foundry.shutdown();
 
 console.log({call});
-
 
 let abi = new ethers.Interface([
 	`function fetch(bytes context, tuple(bytes ops, bytes[] inputs) request)`
@@ -38,15 +37,10 @@ let abi = new ethers.Interface([
 let res = abi.decodeFunctionData('fetch', call);
 console.log(res.toObject());
 
-// let L2OutputOracle = new ethers.Contract('0x56315b90c40730925ec5485cf004d835058518A0', [
-// 	'function latestOutputIndex() external view returns (uint256)',
-// 	'function getL2Output(uint256 outputIndex) external view returns (tuple(bytes32 outputRoot, uint128 t, uint128 block))',
-// ], provider1);
-// let output = await L2OutputOracle.latestOutputIndex();
-// let {block} = await L2OutputOracle.getL2Output(output);
-let block = ethers.toBeHex(13491000n);
+let {block} = await gateway.fetch_output(await gateway.latest_index());
+//let block = ethers.toBeHex(13491000n);
 
-let me = new MultiExpander(provider2, block);
+let me = new MultiExpander(gateway.provider2, block);
 
 let outputs = await me.eval(ethers.getBytes(res.request.ops), res.request.inputs);
 
@@ -55,11 +49,11 @@ for (let output of outputs) {
 	console.log(output);
 }
 
-let [accountProofs, storageProofs] = await me.prove(outputs);
+let [accountProofs, stateProofs] = await me.prove(outputs);
 
 console.log({
 	accounts: accountProofs.length, 
-	slots: storageProofs.map(([account, proofs]) => ({account, slots: proofs.length}))
+	slots: stateProofs.map(([account, proofs]) => ({account, slots: proofs.length}))
 });
 
 /*

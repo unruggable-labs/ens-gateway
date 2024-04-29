@@ -1,6 +1,8 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import "forge-std/console2.sol";
+
 import {GatewayRequest, AccountNotFound} from "./GatewayRequest.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";
 import {EVMFetcher} from "./EVMFetcher.sol";
@@ -21,7 +23,8 @@ abstract contract EVMFetchTarget2 {
 
 	function _nextPair(string[] memory urls) internal view returns (string[] memory rest, string[] memory pair) {
 		if (urls.length == 0) revert OffchainLookupUnanswered();
-		uint256 index = block.number % urls.length;
+		//uint256 index = block.number % urls.length;
+		uint256 index = 0;
 		rest = new string[](urls.length - 1);
 		for (uint256 i; i < index; i += 1) rest[i] = urls[i];
 		for (uint256 i = index + 1; i < urls.length; i += 1) rest[i-1] = urls[i];
@@ -49,7 +52,7 @@ abstract contract EVMFetchTarget2 {
 	function fetchCallback(bytes calldata response, bytes calldata carry) external view {
 		(Session memory ses, string[] memory urls) = abi.decode(carry, (Session, string[]));
 		if (response.length > 0) {
-			try ses.verifier.getStorageValues(ses.context, ses.req, abi.decode(response, (bytes))) returns (bytes[] memory values) {
+			try ses.verifier.getStorageValues(ses.context, ses.req, response) returns (bytes[] memory values) {
 				(bool ok, bytes memory ret) = address(this).staticcall(abi.encodeWithSelector(ses.callback, values, ses.carry));
 				if (ok) {
 					assembly { return(add(ret, 32), mload(ret)) }

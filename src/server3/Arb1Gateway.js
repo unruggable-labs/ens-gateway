@@ -48,11 +48,10 @@ export class Arb1Gateway extends EZCCIP {
 				let expander = new MultiExpander(this.provider2, node.block, node.slot_cache);
 				let values = await expander.eval(ethers.getBytes(ops), inputs);
 				let [account_proofs, state_proofs] = await expander.prove(values);
-				let witness = ABI_CODER.encode(
+				return ABI_CODER.encode(
 					['bytes32', 'bytes', 'bytes[][]', 'tuple(uint256, bytes[][])[]'],
 					[node.sendRoot, node.rlpEncodedBlock, account_proofs, state_proofs]
 				);
-				return [witness];
 			});
 		});
 	}

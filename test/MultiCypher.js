@@ -47,8 +47,8 @@ let abi = new ethers.Interface([
 let res = abi.decodeFunctionData('fetch', call);
 console.log(res.toObject());
 
-//let {block} = await gateway.fetch_node(await gateway.latest_index());
-let block = '0xc41bfaa';
+let {block} = await gateway.fetch_node(await gateway.latest_index());
+//let block = '0xc41bfaa';
 
 let me = new MultiExpander(gateway.provider2, block);
 

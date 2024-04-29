@@ -5,6 +5,7 @@ pragma solidity ^0.8.23;
 import {GatewayRequest} from "./evm-verifier3/GatewayRequest.sol";
 import {EVMFetcher} from "./evm-verifier3/EVMFetcher.sol";
 import {EVMFetchTarget2} from "./evm-verifier3/EVMFetchTarget2.sol";
+//import {EVMFetchTarget} from "./evm-verifier3/EVMFetchTarget.sol";
 import {IEVMVerifier} from "./evm-verifier3/IEVMVerifier.sol";
 
 contract MultiTargetDemo is EVMFetchTarget2 {

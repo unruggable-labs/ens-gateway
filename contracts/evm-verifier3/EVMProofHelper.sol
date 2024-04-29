@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.23;
 
 import "./GatewayRequest.sol";
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {SecureMerkleTrie} from "../trie-with-nonexistance/SecureMerkleTrie.sol";
-
-import "forge-std/console2.sol";
 
 struct StateProof {
 	uint256 accountIndex;
@@ -13,8 +11,6 @@ struct StateProof {
 }
 
 library EVMProofHelper {
-
-	error InvalidGatewayRequest();
 
 	/**
 	* @notice Get the storage root for the provided merkle proof
@@ -88,7 +84,6 @@ library EVMProofHelper {
 	}
 
 	function getStorageValues(GatewayRequest memory req, bytes32 stateRoot, bytes[][] memory accountProofs, StateProof[] memory stateProofs) internal pure returns(bytes[] memory outputs) {
-		//outputs = new bytes[](req.outputs);
 		outputs = new bytes[](uint8(req.ops[0]));
 		bytes[] memory stack = new bytes[](16);
 		uint256 slot;

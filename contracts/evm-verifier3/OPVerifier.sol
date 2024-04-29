@@ -9,8 +9,6 @@ import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPRe
 import {Types} from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
 import {Hashing} from "../forge-import-bug/Hashing.sol";
 
-import "forge-std/console2.sol";
-
 interface IL2OutputOracle {
 	function latestOutputIndex() external view returns (uint256);
 	function getL2Output(uint256 outputIndex) external view returns (Types.OutputProposal memory);
@@ -49,7 +47,7 @@ contract OPVerifier is IEVMVerifier {
 		if (output.outputRoot != expectedRoot) {
 			revert OutputRootMismatch(context, expectedRoot, output.outputRoot);
 		}
-		return EVMProofHelper.getStorageValues(req, expectedRoot, accountProofs, stateProofs);
+		return EVMProofHelper.getStorageValues(req, outputRootProof.stateRoot, accountProofs, stateProofs);
 	}
 
 }

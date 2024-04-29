@@ -4,7 +4,7 @@ import {OPGateway} from '../../src/server2/OPGateway.js';
 import {ethers} from 'ethers';
 import {provider_url, create_provider_pair, CHAIN_BASE} from '../../src/providers.js';
 
-let foundry = await Foundry.launch({fork: provider_url(1)});
+let foundry = await Foundry.launch({fork: provider_url(1), procLog: true});
 
 let gateway = OPGateway.base_mainnet(create_provider_pair(CHAIN_BASE));
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.23;
 
 import "./GatewayRequest.sol";
 
@@ -43,7 +43,7 @@ library EVMFetcher {
 			bytes[] memory m = req.inputs;
 			uint256 n = m.length + 1;
 			if (n > MAX_INPUTS) revert Overflow();
-			assembly { 
+			assembly {
 				mstore(m, n) 
 				mstore(add(m, shl(5, n)), v)
 				ci := sub(n, 1)

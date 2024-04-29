@@ -31,7 +31,7 @@ abstract contract EVMFetchTarget {
 
 	function fetchCallback(bytes calldata response, bytes calldata carry) external view {
 		Session memory ses = abi.decode(carry, (Session));
-		bytes[] memory values = ses.verifier.getStorageValues(ses.context, ses.req, abi.decode(response, (bytes)));
+		bytes[] memory values = ses.verifier.getStorageValues(ses.context, ses.req, response); // abi.decode(response, (bytes)));
 		(bool ok, bytes memory ret) = address(this).staticcall(abi.encodeWithSelector(ses.callback, values, ses.carry));
 		/*
 		//if (values.length != expected) revert OffchainTryNext();
