@@ -132,11 +132,11 @@ export class MultiExpander {
 	async read_output(target, slot, step) {
 		target = await target;
 		if (!target) throw Object.assign(new Error('invalid target'), {target});
-		// address(uint160(_toUint256(stack[--stackIndex]))),
+		// the following should be equivalent to: address(uint160(_toUint256(x)))
 		target = '0x' + (target.length >= 66 ? target.slice(26, 66) : target.slice(2).padStart(40, '0').slice(-40)).toLowerCase();
 		console.log({target, slot, step});
 		let first = await this.getStorage(target, slot);
-		let size = parseInt(first.slice(64), 16);
+		let size = parseInt(first.slice(64), 16); // last byte
 		if (step == 0) { // 1 slot is the same thing is bytes(32)
 			step = 1;
 			size = 64;
@@ -149,9 +149,9 @@ export class MultiExpander {
 				value: () => p
 			};
 		}
-		let count = parseInt(first) >> 1;
-		size = count * step;
-		if (size > this.max_bytes) throw Object.assign(new Error('value overflow'), {size, max: this.max_bytes});
+		size = (BigInt(first) >> 1n) * BigInt(step); // this could be done with Number()
+		if (size > this.max_bytes) throw Object.assign(new Error('dynamic overflow'), {size, max: this.max_bytes});
+		size = Number(size);
 		let offset = BigInt(ethers.solidityPackedKeccak256(['uint256'], [slot]));
 		let slots = [slot, ...Array.from({length: (size + 31) >> 5}, (_, i) => offset + BigInt(i))];
 		const getStorage = this.getStorage.bind(this, target);
