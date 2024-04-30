@@ -42,8 +42,8 @@ export class Arb1Gateway extends EZCCIP {
 			return this.call_cache.get(hash, async () => {
 				index = parseInt(index);
 				let latest = await this.latest_index();
-				if (index < latest - this.node_cache.max_cached) throw new Error('stale node');
-				if (index > latest + 1) throw new Error('future node');
+				if (index < latest - this.node_cache.max_cached) throw new Error('stale');
+				if (index > latest + 1) throw new Error('future');
 				let node = await this.node_cache.get(index, x => this.fetch_node(x));
 				let expander = new MultiExpander(this.provider2, node.block, node.slot_cache);
 				let values = await expander.eval(ethers.getBytes(ops), inputs);

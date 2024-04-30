@@ -12,17 +12,17 @@ export function provider_url(chain) {
 		} catch (err) {
 		}
 	}
-	if (ENV.ALCHEMY_KEY) {
+	if (ENV.ALCHEMY_KEY) { // alchemy apparently uses per-chain keys, making this unlikely
 		try {
 			return ethers.AlchemyProvider.getRequest(ethers.Network.from(chain), ENV.ALCHEMY_KEY).url;
 		} catch (err) {
 		}
 	}
-	let key = ENV[`ALCHEMY_KEY_${chain}`];
+	let key = ENV[`ALCHEMY_KEY_${chain}`]; // suggested
 	if (key) {
 		return ethers.AlchemyProvider.getRequest(ethers.Network.from(chain), key).url;
 	}
-	switch (chain) {
+	switch (chain) { // public
 		case 1: return 'https://cloudflare-eth.com';
 		case CHAIN_BASE: return 'https://mainnet.base.org';
 		case CHAIN_ARB1: return 'https://arb1.arbitrum.io/rpc';

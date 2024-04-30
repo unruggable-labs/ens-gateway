@@ -1,8 +1,6 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "forge-std/console2.sol";
-
 import {GatewayRequest, AccountNotFound} from "./GatewayRequest.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";
 import {EVMFetcher} from "./EVMFetcher.sol";
@@ -23,7 +21,7 @@ abstract contract EVMFetchTarget2 {
 
 	function _nextPair(string[] memory urls) internal view returns (string[] memory rest, string[] memory pair) {
 		if (urls.length == 0) revert OffchainLookupUnanswered();
-		//uint256 index = block.number % urls.length;
+		//uint256 index = block.number % urls.length; // FIX ME
 		uint256 index = 0;
 		rest = new string[](urls.length - 1);
 		for (uint256 i; i < index; i += 1) rest[i] = urls[i];

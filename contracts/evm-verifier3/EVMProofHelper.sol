@@ -63,7 +63,7 @@ library EVMProofHelper {
 		if (step == 1 && (first & 1) == 0) {
 			size = (first & 0xFF) >> 1;
 			v = new bytes(size);
-			if (size > 0) assembly { mstore(add(v, 32), first) }
+			assembly { mstore(add(v, 32), first) }
 		} else {
 			size = (first >> 1) * step; // number of bytes
 			first = (size + 31) >> 5; // rename: number of slots

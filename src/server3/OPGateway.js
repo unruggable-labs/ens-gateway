@@ -31,7 +31,8 @@ export class OPGateway extends EZCCIP {
 			return this.call_cache.get(hash, async () => {
 				index = parseInt(index);
 				let latest = await this.latest_index();
-				if (index < latest - this.output_cache.max_cached) throw new Error('too old');
+				if (index < latest - this.output_cache.max_cached) throw new Error('stale');
+				if (index > latest + 1) throw new Error('future');
 				let output = await this.output_cache.get(index, x => this.fetch_output(x));
 				let expander = new MultiExpander(this.provider2, output.block, output.slot_cache);
 				let values = await expander.eval(ethers.getBytes(ops), inputs);

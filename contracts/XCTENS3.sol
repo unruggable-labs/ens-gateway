@@ -84,7 +84,7 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 		_prepare_node(r, SLOT_ADDRS, token);
 			r.push(cty); r.follow(); 
 		r.end(1);
-		if ((cty == CTY_ETH || (cty & 0x80000000) != 0) && cty != CTY_EVM) {
+		if (cty == CTY_ETH || (cty & 0x80000000) != 0) { // CTY_EVM is not EVM
 			_prepare_node(r, SLOT_ADDRS, token);
 				r.push(CTY_EVM); r.follow(); 
 			r.end(1);
