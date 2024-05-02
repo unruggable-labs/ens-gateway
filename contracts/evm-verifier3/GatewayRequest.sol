@@ -6,8 +6,8 @@ uint256 constant MAX_OPS = 256;
 uint8 constant MAX_INPUTS = 255;
 uint8 constant MAX_OUTPUTS = 255;
 
-uint8 constant OP_PATH_START	= 1;
-uint8 constant OP_PATH_END		= 2;
+uint8 constant OP_FOCUS			= 1;
+uint8 constant OP_COLLECT		= 2;
 uint8 constant OP_PUSH			= 10;
 uint8 constant OP_PUSH_OUTPUT	= 11;
 //uint8 constant OP_PUSH_BYTE		= 12;

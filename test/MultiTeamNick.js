@@ -16,11 +16,13 @@ let contract = await foundry.deploy({sol: `
 		using EVMFetcher for GatewayRequest;
 		function makeCall() external pure returns (bytes memory) {
 			GatewayRequest memory r = EVMFetcher.create();
-			r.push(0x0f1449C980253b576aba379B11D453Ac20832a89); r.start(); r.end(0);
-			r.output(0); r.start(); r.push(8); r.add(); r.end(0);
-			r.output(0); r.start(); r.push(9); r.add(); r.end(1);
-			r.output(0); r.start(); r.push(7); r.add(); r.push(uint256(keccak256(bytes("raffy")))); r.follow(); r.end(0);
-			r.output(0); r.start(); r.push(7); r.add(); r.push(uint256(keccak256(bytes("raffy")))); r.follow(); r.push(1); r.add(); r.end(1);
+			r.push(0x0f1449C980253b576aba379B11D453Ac20832a89); r.focus(); 
+			r.collect(0);
+			r.output(0); r.focus();
+			r.push(8); r.add(); r.collect(0);
+			r.push(9); r.add(); r.collect(1);
+			r.push(7); r.add(); r.push(uint256(keccak256(bytes("raffy")))); r.follow(); r.collect(0);
+			r.push(7); r.add(); r.push(uint256(keccak256(bytes("raffy")))); r.follow(); r.push(1); r.add(); r.collect(1);
 			return r.encode('');
 		}
 	}

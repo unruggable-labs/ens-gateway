@@ -1,7 +1,13 @@
 import {ethers} from 'ethers';
+import {SmartCache} from './SmartCache.js';
 
-const OP_PATH_START		= 1;
-const OP_PATH_END		= 2;
+// this should mimic GatewayRequest.sol + EVMProofHelper.sol
+
+const MAX_OUTPUTS = 255;
+const MAX_INPUTS = 255;
+
+const OP_FOCUS			= 1;
+const OP_COLLECT		= 2;
 const OP_PUSH			= 10;
 const OP_PUSH_OUTPUT	= 11;
 //const OP_PUSH_BYTE		= 12;
@@ -10,14 +16,76 @@ const OP_SLOT_FOLLOW	= 21;
 const OP_STACK_KECCAK	= 30;
 const OP_STACK_CONCAT   = 31;
 const OP_STACK_SLICE	= 32;
-//const OP_CONCAT = 11;
+
+export class GatewayRequest {
+	static create(n = 1024) {
+		return new this(n);
+	}
+	constructor(size) {
+		this.pos = 1;
+		this.buf = new Uint8Array(size); // this is MAX_OPs (this could just grow forever)
+		this.inputs = [];
+	}
+	get ops() {
+		return this.buf.slice(0, this.pos);
+	}
+	_add_op(op) {
+		if ((op & 255) !== op) throw Object.assign(new Error('expected byte'), {op});
+		let i = this.pos;
+		if (i === this.buf.length) throw new Error('op overflow');
+		this.buf[i] = op;
+		this.pos = i + 1;
+	}
+	_add_input(v) {
+		if (this.inputs.length == MAX_INPUTS) throw new Error('inputs overflow');
+		this.inputs.push(ethers.hexlify(v));
+		return this.inputs.length-1;
+	}
+	_add_output() {
+		let oi = this.buf[0];
+		if (oi == MAX_OUTPUTS) throw new Error('outputs overflow');
+		this.buf[0] = oi + 1;
+		return oi;
+	}
+	focus() { this._add_op(OP_FOCUS); }
+	collect(step) {
+		this._add_op(OP_COLLECT);
+		this._add_op(step);
+		return this._add_output();
+	}
+	//push_abi(type, x) { return this.push_bytes(ethers.AbiCoder.defaultAbiCoder().encode([type], [x])); }
+	push(x) { this.push_bytes(ethers.toBeHex(x, 32)); }
+	push_str(x) { this.push_bytes(ethers.toUtf8Bytes(x)); }
+	push_bytes(x) {
+		this._add_op(OP_PUSH);
+		this._add_op(this._add_input(x));
+	}
+	output(oi) {
+		this._add_op(OP_PUSH_OUTPUT);
+		this._add_op(oi);
+	}
+	slice(x, n) {
+		this._add_op(OP_STACK_SLICE);
+		this._add_op(x);
+		this._add_op(n);
+	}
+	follow() { this._add_op(OP_SLOT_FOLLOW); }
+	add()    { this._add_op(OP_SLOT_ADD); }
+	keccak() { this._add_op(OP_STACK_KECCAK); }
+	concat() { this._add_op(OP_STACK_CONCAT); }
+}
 
 export class MultiExpander {
+	async latest(provider) {
+		let block = await provider.getBlockNumber();
+		return new this(provider, ethers.toBeHex(block));
+	}
 	constructor(provider, block, cache) {
 		this.provider = provider;
 		this.block = block;
 		this.cache = cache;
-		this.max_bytes = 1 << 13;
+		if (cache === undefined) cache = new SmartCache(); // this is probably always worth while (use other falsy to disable)
+		this.max_bytes = 1 << 13; // 8KB
 	}
 	async getStorage(target, slot) {
 		slot = ethers.toBeHex(slot);
@@ -39,6 +107,8 @@ export class MultiExpander {
 			output.bucket = bucket;
 			output.slots.forEach(x => bucket.set(x, null));
 		}
+		// TODO: check eth_getProof limits
+		// https://github.com/ethereum/go-ethereum/blob/9f96e07c1cf87fdd4d044f95de9c1b5e0b85b47f/internal/ethapi/api.go#L707 (no limit, just payload size)
 		await Promise.all(Array.from(targets, async ([target, bucket]) => {
 			let slots = [...bucket.keys()];
 			let proof = await this.provider.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), this.block]);
@@ -69,14 +139,14 @@ export class MultiExpander {
 		};
 		const expected = read_byte();
 		while (pos < ops.length) {
+			let op = ops[pos++];
 			try {
-				let op = ops[pos++];
 				switch (op) {
-					case OP_PATH_START: {
+					case OP_FOCUS: {
 						target = pop_stack();
 						break;
 					}
-					case OP_PATH_END: {
+					case OP_COLLECT: {
 						outputs.push(this.read_output(target, slot, read_byte()));
 						slot = 0n;
 						break;
@@ -125,7 +195,7 @@ export class MultiExpander {
 			}
 		}
 		if (outputs.length != expected) {
-			throw Object.assign(new Error('output mismatch', {values, expected}));
+			throw Object.assign(new Error('output mismatch', {outputs, expected}));
 		}
 		return Promise.all(outputs);
 	}

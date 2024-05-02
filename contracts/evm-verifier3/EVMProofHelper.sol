@@ -92,13 +92,13 @@ library EVMProofHelper {
 		bytes32 storageRoot;
 		for (uint256 i = 1; i < req.ops.length; ) {
 			uint256 op = uint8(req.ops[i++]);
-			if (op == OP_PATH_START) {
+			if (op == OP_FOCUS) {
 				storageRoot = getStorageRoot(
 					stateRoot,
 					address(uint160(_toUint256(stack[--stackIndex]))),
 					accountProofs[stateProofs[outputIndex].accountIndex]
 				);
-			} else if (op == OP_PATH_END) {
+			} else if (op == OP_COLLECT) {
 				outputs[outputIndex] = proveOutput(
 					storageRoot,
 					stateProofs[outputIndex].storageProofs,

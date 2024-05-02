@@ -23,15 +23,10 @@ let contract = await foundry.deploy({sol: `
 		function makeCall() external pure returns (bytes memory) {
 			GatewayRequest memory r = EVMFetcher.create();
 			uint256 token = uint256(keccak256(bytes("slobo")));
-			r.push(CYPHER_NFT); r.start(); r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); r.end(0);
-			r.push(CYPHER_NFT); r.start();
-				r.push(SLOT_ADDRS); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
-				r.push(60); r.follow();
-				r.end(1);
-			r.push(CYPHER_NFT); r.start();
-				r.push(SLOT_TEXTS); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
-				r.push(bytes("com.twitter")); r.follow();
-				r.end(1);
+			r.push(CYPHER_NFT); r.focus(); 
+			r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); r.collect(0);
+			r.push(SLOT_ADDRS); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); r.push(60); r.follow(); r.collect(1);
+			r.push(SLOT_TEXTS); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); r.push(bytes("com.twitter")); r.follow(); r.collect(1);
 			return r.encode('');
 		}
 	}
@@ -58,3 +53,10 @@ for (let output of outputs) {
 	output.value = await output.value();
 	console.log(output);
 }
+
+let [accountProofs, stateProofs] = await me.prove(outputs);
+
+console.log({
+	accounts: accountProofs.length, 
+	slots: stateProofs.map(([account, proofs]) => ({account, slots: proofs.length}))
+});

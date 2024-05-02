@@ -50,20 +50,23 @@ library EVMFetcher {
 			}
 		}
 	}
-	
-	// path operations
-	function start(GatewayRequest memory req) internal pure returns (uint8 oi) {
+	function addOutput(GatewayRequest memory req) internal pure returns (uint8 oi) {
 		unchecked {
 			bytes memory v = req.ops;
 			oi = uint8(v[0]);
 			if (oi == MAX_OUTPUTS) revert Overflow();
 			v[0] = bytes1(oi + 1);
-			addOp(req, OP_PATH_START);
 		}
 	}
-	function end(GatewayRequest memory req, uint8 size) internal pure {
-		addOp(req, OP_PATH_END);
-		addOp(req, size);
+	
+	// path operations
+	function focus(GatewayRequest memory req) internal pure {
+		addOp(req, OP_FOCUS);
+	}
+	function collect(GatewayRequest memory req, uint8 step) internal pure returns (uint8) {
+		addOp(req, OP_COLLECT);
+		addOp(req, step);
+		return addOutput(req);
 	}
 	
 	// slot operations

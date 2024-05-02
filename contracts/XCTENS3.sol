@@ -49,9 +49,8 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 		if (label.length == 0) return _resolveBasename(node, request);
 		uint256 token = uint256(keccak256(bytes(label)));
 		GatewayRequest memory r = EVMFetcher.create();
-		r.push(_xctens); r.start();
-			r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); 
-		r.end(0);
+		r.push(_xctens); r.focus();
+		r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); r.collect(0);
 		bytes4 selector = bytes4(request);
 		if (selector == IAddrResolver.addr.selector) {
 			_fetch_addr(r, token, CTY_ETH);
@@ -64,30 +63,22 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 			if (keyhash == keccak256(bytes("owner"))) {
 				selector = SEL_OWNER;
 			} else {
-				_prepare_node(r, SLOT_TEXTS, token);
-					r.push(bytes(key)); r.follow(); 
-				r.end(1);
+				_prepare_node(r, SLOT_TEXTS, token); r.push(bytes(key)); r.follow(); r.collect(1);
 			}
 		} else if (selector == IContentHashResolver.contenthash.selector) {
-			_prepare_node(r, SLOT_CHASHES, token);
-			r.end(1);
+			_prepare_node(r, SLOT_CHASHES, token); r.collect(1);
 		} else {
 			return new bytes(64);
 		}
 		fetch(_verifier, r, this.resolveCallback.selector, abi.encode(selector, request));
 	}
-	function _prepare_node(GatewayRequest memory r, uint256 slot, uint256 token) internal view {
-		r.push(_xctens); r.start();
-			r.push(slot); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
+	function _prepare_node(GatewayRequest memory r, uint256 slot, uint256 token) internal pure {
+		r.push(slot); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
 	}
 	function _fetch_addr(GatewayRequest memory r, uint256 token, uint256 cty) internal view {
-		_prepare_node(r, SLOT_ADDRS, token);
-			r.push(cty); r.follow(); 
-		r.end(1);
+		_prepare_node(r, SLOT_ADDRS, token); r.push(cty); r.follow(); r.collect(1);
 		if (cty == CTY_ETH || (cty & 0x80000000) != 0) { // CTY_EVM is not EVM
-			_prepare_node(r, SLOT_ADDRS, token);
-				r.push(CTY_EVM); r.follow(); 
-			r.end(1);
+			_prepare_node(r, SLOT_ADDRS, token); r.push(CTY_EVM); r.follow(); r.collect(1);
 		}
 	}
 	function resolveCallback(bytes[] calldata values, bytes calldata carry) external view returns (bytes memory) {
@@ -122,9 +113,7 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 			bytes32 keyhash = keccak256(bytes(key));
 			if (keyhash == keccak256(bytes("description"))) {
 				GatewayRequest memory r = EVMFetcher.create();
-				r.push(_xctens); r.start();
-					r.push(SLOT_SUPPLY); r.add();
-				r.end(0);
+				r.push(SLOT_SUPPLY); r.add(); r.collect(0);
 				fetch(_verifier, r, this.descriptionCallback.selector, '');
 			}
 		}
