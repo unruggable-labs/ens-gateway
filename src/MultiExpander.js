@@ -17,14 +17,30 @@ const OP_STACK_KECCAK	= 30;
 const OP_STACK_CONCAT   = 31;
 const OP_STACK_SLICE	= 32;
 
+export const GATEWAY_ABI = new ethers.Interface([
+	`function fetch(bytes context, tuple(bytes, bytes[]) request) returns (bytes memory)`
+]);
+
 export class GatewayRequest {
 	static create(n = 1024) {
 		return new this(n);
+	} 
+	static decode(data) {
+		let [context, [ops, inputs]] = GATEWAY_ABI.decodeFunctionData('fetch', data);
+		let r = new this(0);
+		r.buf = ethers.getBytes(ops);
+		r.pos = r.buf.length;
+		r.inputs = inputs;
+		r.context = context;
+		return r;
 	}
 	constructor(size) {
 		this.pos = 1;
 		this.buf = new Uint8Array(size); // this is MAX_OPs (this could just grow forever)
 		this.inputs = [];
+	}
+	encode(context) {
+		return GATEWAY_ABI.encodeFunctionData('fetch', [context ?? this.content ?? '0x', [this.ops, this.inputs]]);
 	}
 	get ops() {
 		return this.buf.slice(0, this.pos);
@@ -76,9 +92,15 @@ export class GatewayRequest {
 }
 
 export class MultiExpander {
-	async latest(provider) {
+	static async latest(provider) {
 		let block = await provider.getBlockNumber();
 		return new this(provider, ethers.toBeHex(block));
+	}
+	static async resolved(outputs) {
+		return Promise.all(outputs.map(async x => {
+			x.value = await x.value();
+			return x;
+		}));
 	}
 	constructor(provider, block, cache) {
 		this.provider = provider;

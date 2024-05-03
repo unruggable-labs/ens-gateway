@@ -12,7 +12,7 @@ r.push(9); r.add(); r.collect(1); // baseURI
 r.push(8); r.add(); r.collect(0); // supply
 console.log(r);
 
-let me = new MultiExpander(provider, ethers.toBeHex(13901882));
+let me = await MultiExpander.latest(provider);
 
 let outputs = await me.eval(r.ops, r.inputs);
 
