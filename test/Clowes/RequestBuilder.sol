@@ -29,6 +29,8 @@ contract RequestBuilder {
 		r.push(12+2); r.add(); r.push_str("a"); r.follow();
 			r.push(2); r.add(); r.push_str("b"); r.follow();
 				r.push(1); r.add(); r.collect(1);
+		// #9: highscorers[keccak(...)]
+		r.push(3); r.add(); r.output(5); r.slice(0, 3); r.output(3); r.slice(16, 16); r.concat(); r.keccak(); r.follow(); r.collect(1);
 		return r.encode('');
 	}
 }

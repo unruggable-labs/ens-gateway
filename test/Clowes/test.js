@@ -55,12 +55,16 @@ test('SlotDataReader', async () => {
 	r.push(12+2); r.add(); r.push_str("a"); r.follow();
 		r.push(2); r.add(); r.push_str("b"); r.follow();
 			r.push(1); r.add(); r.collect(1);
+	// #9: uint256(keccak256(abi.encodePacked("Hal", uint128(12345)))
+	r.push(3); r.add(); r.output(5); r.slice(0, 3); r.output(3); r.slice(16, 16); r.concat(); r.keccak(); r.follow(); r.collect(1);
 	/********************************************************************************/
 	test('GatewayRequest: solc == js', () => assert.equal(call0, r.encode()));
 
 	// execute the request
 	let expander = await MultiExpander.latest(foundry.provider);
 	let outputs = await MultiExpander.resolved(await expander.eval(r.ops, r.inputs));
+
+	//console.log(outputs);
 
 	//console.log(outputs);
 	function decode_one(type, data) {
@@ -77,5 +81,6 @@ test('SlotDataReader', async () => {
 	test('root.str = "raffy"',					() => assert.equal(ethers.toUtf8String(outputs[6].value), 'raffy'));
 	test('root.map["a"].num = 2',				() => assert.equal(ethers.toBigInt(outputs[7].value), 2n));
 	test('root.map["a"].map["b"].str = "eth"',	() => assert.equal(ethers.toUtf8String(outputs[8].value), "eth"));
+	test('highscorers[keccak(...)] = "chonk"',	() => assert.equal(ethers.toUtf8String(outputs[9].value), "chonk"));
 
 });

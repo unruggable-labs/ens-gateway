@@ -47,5 +47,8 @@ contract SlotDataContract {
 		root.map["a"].map["b"].num = 3;
 		root.map["a"].map["b"].str = "eth";
 
+		// realnames[highscorers[latest]].slice(0, 3) + highscores[latest].slice(16, 16)
+		highscorers[uint256(keccak256(abi.encodePacked("Hal", uint128(12345))))] = "chonk";
+
 	}
 }
