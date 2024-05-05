@@ -78,6 +78,8 @@ library EVMFetcher {
 	}
 
 	// stack operations
+	function push_str(GatewayRequest memory req, string memory s) internal pure { push(req, bytes(s)); }
+	
 	function push(GatewayRequest memory req, uint256 x) internal pure { push(req, abi.encode(x)); }
 	function push(GatewayRequest memory req, address x) internal pure { push(req, abi.encode(x)); }
 	function push(GatewayRequest memory req, bytes32 x) internal pure { push(req, abi.encode(x)); }
@@ -85,6 +87,8 @@ library EVMFetcher {
 		addOp(req, OP_PUSH);
 		addOp(req, addInput(req, v));
 	}
+	// this is only useful for very large inputs
+	// input size on average is dwarfed by proof size
 	function input(GatewayRequest memory req, uint8 ci) internal pure {
 		addOp(req, OP_PUSH);
 		addOp(req, ci);

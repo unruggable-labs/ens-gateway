@@ -97,6 +97,7 @@ export class MultiExpander {
 		return new this(provider, ethers.toBeHex(block));
 	}
 	static async resolved(outputs) {
+		// fully resolve and unwrap the values
 		return Promise.all(outputs.map(async x => {
 			x.value = await x.value();
 			return x;
@@ -144,7 +145,7 @@ export class MultiExpander {
 		//return outputs.map(output => [output.bucket.proof, output.slots.map(x => output.bucket.get(x))]);
 	}
 	async eval(ops, inputs) {
-		console.log({ops, inputs});
+		//console.log({ops, inputs});
 		let pos = 0;
 		let slot = 0n;
 		let target;
@@ -226,7 +227,7 @@ export class MultiExpander {
 		if (!target) throw Object.assign(new Error('invalid target'), {target});
 		// the following should be equivalent to: address(uint160(_toUint256(x)))
 		target = '0x' + (target.length >= 66 ? target.slice(26, 66) : target.slice(2).padStart(40, '0').slice(-40)).toLowerCase();
-		console.log({target, slot, step});
+		//console.log({target, slot, step});
 		let first = await this.getStorage(target, slot);
 		let size = parseInt(first.slice(64), 16); // last byte
 		if (step == 0) { // 1 slot is the same thing is bytes(32)

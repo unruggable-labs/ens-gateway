@@ -73,9 +73,18 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 		fetch(_verifier, r, this.resolveCallback.selector, abi.encode(selector, request));
 	}
 	function _prepare_node(GatewayRequest memory r, uint256 slot, uint256 token) internal pure {
+		// mapping(bytes32 => bytes) _chashes;
+		// mapping(bytes32 => mapping(string => string)) _texts;
+		// mapping(bytes32 => mapping(uint256 => bytes)) _addrs;
+		// function _tokenFromLabel(string memory label) internal pure returns (uint256) {
+		//     return uint256(keccak256(abi.encodePacked(label)));
+		// }
+		// function _node(uint256 token) internal view returns (bytes32) {
+		//     return keccak256(abi.encodePacked(_ownerOf(token), token));
+		// }
 		r.push(slot); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
 	}
-	function _fetch_addr(GatewayRequest memory r, uint256 token, uint256 cty) internal view {
+	function _fetch_addr(GatewayRequest memory r, uint256 token, uint256 cty) internal pure {
 		_prepare_node(r, SLOT_ADDRS, token); r.push(cty); r.follow(); r.collect(1);
 		if (cty == CTY_ETH || (cty & 0x80000000) != 0) { // CTY_EVM is not EVM
 			_prepare_node(r, SLOT_ADDRS, token); r.push(CTY_EVM); r.follow(); r.collect(1);

@@ -1,74 +1,81 @@
+import {ethers} from 'ethers';
 import {Foundry} from '@adraffy/blocksmith';
 import {GatewayRequest, MultiExpander} from '../../src/MultiExpander.js';
 import assert from 'node:assert/strict';
+import {test, after} from 'node:test';
 
-let foundry = await Foundry.launch();
+test('SlotDataReader', async () => {
+	
+	let foundry = await Foundry.launch();
+	after(() => foundry.shutdown());
 
-let storage = await foundry.deploy({file: 'SlotDataContract', args: [foundry.wallets.admin]});
+	// deploy storage example
+	let storage = await foundry.deploy({file: 'SlotDataContract', args: [foundry.wallets.admin]});
 
-// uint256 latest = 49;                                // Slot 0
-// string name;                                        // Slot 1
-// mapping(uint256=>uint256) highscores;               // Slot 2
-// mapping(uint256=>string) highscorers;               // Slot 3
-// mapping(string=>string) realnames;                  // Slot 4
-// uint256 zero;                                       // Slot 5
-// bytes pointlessBytes;                               // Slot 6
-// bytes paddedAddress;                                // Slot 7
-// mapping(address=>string) addressIdentifiers;        // Slot 8
-// string iam = "tomiscool";                           // Slot 9
-// mapping(string=>string) stringStrings;              // Slot 10
-// address anotherAddress;                             // Slot 11
-
-let storage_pointer = await foundry.deploy({sol: `
-	contract Pointer {
-		address a;
-		constructor(address _a) {
-			a = _a;
+	// deploy pointer to storage example
+	let storage_pointer = await foundry.deploy({sol: `
+		contract Pointer {
+			address a;
+			constructor(address _a) {
+				a = _a;
+			}
 		}
+	`, args: [storage]});
+
+	// deploy solc code that builds requests
+	let builder = await foundry.deploy({file: 'RequestBuilder'});
+
+	// confirm js builder decoder/encoder sameness
+	let call0 = await builder.makeCall(storage_pointer);
+	test('GatewayRequest: encode(decode(x)) == x', () => assert.equal(call0, GatewayRequest.decode(call0).encode()));
+
+	// confirm js builder is 1:1
+	let r = GatewayRequest.create();
+	r.push(storage_pointer.target); r.focus();
+	/********************************************************************************/
+	// #0: address (from pointer)
+	r.collect(0); 
+	// target = #0
+	r.output(0); r.focus();
+	// #1: uint256 latest 
+	r.collect(0);
+	// #2: string name
+	r.push(1); r.add(); r.collect(1);
+	// #3: highscores[#1]
+	r.push(2); r.add(); r.output(1); r.follow(); r.collect(0);
+	// #4: highscorers[#1]
+	r.push(3); r.add(); r.output(1); r.follow(); r.collect(1);
+	// #5: realnames[#4]
+	r.push(4); r.add(); r.output(4); r.follow(); r.collect(1);
+	// #6: root.str
+	r.push(12+1); r.add(); r.collect(1);
+	// #7: root.map["a"].num
+	r.push(12+2); r.add(); r.push_str("a"); r.follow(); r.collect(0);
+	// #8: root.map["a"].map["b"].str
+	r.push(12+2); r.add(); r.push_str("a"); r.follow();
+		r.push(2); r.add(); r.push_str("b"); r.follow();
+			r.push(1); r.add(); r.collect(1);
+	/********************************************************************************/
+	test('GatewayRequest: solc == js', () => assert.equal(call0, r.encode()));
+
+	// execute the request
+	let expander = await MultiExpander.latest(foundry.provider);
+	let outputs = await MultiExpander.resolved(await expander.eval(r.ops, r.inputs));
+
+	//console.log(outputs);
+	function decode_one(type, data) {
+		return ethers.AbiCoder.defaultAbiCoder().decode([type], data)[0];
 	}
-`, args: [storage]});
 
-let builder = await foundry.deploy({sol: `
-	import "@src/evm-verifier3/EVMFetcher.sol";
-	contract Builder {
-		using EVMFetcher for GatewayRequest;
-		function makeCall(address a) external pure returns (bytes memory) {
-			GatewayRequest memory r = EVMFetcher.create();
-			r.push(a); r.focus(); 
-			r.collect(0);
-			r.output(0); r.focus();
-			r.push(uint256(0)); r.add(); r.collect(0);	// uint256
-			r.push(1); r.add(); r.collect(1);	// string name
-			r.push(2); r.add(); r.push(1);		// highscores[1]
-			r.push(2); r.add(); r.output(1);	// highscores[latest]
-			return r.encode('');
-		}
-	}
-`});
+	// decode all of the fields
+	test('storage pointer',						() => assert.equal(decode_one('address', outputs[0].value), storage.target));
+	test('uint256 latest = 49',					() => assert.equal(ethers.toBigInt(outputs[1].value), 49n));
+	test('string name = "Satoshi"',				() => assert.equal(ethers.toUtf8String(outputs[2].value), 'Satoshi'));
+	test('highscores[latest] = 12345',			() => assert.equal(ethers.toBigInt(outputs[3].value), 12345n));
+	test('highscorers[latest] = "Satoshi"',		() => assert.equal(ethers.toUtf8String(outputs[4].value), 'Satoshi'));
+	test('realnames["Satoshi"] = "Hal Finney"',	() => assert.equal(ethers.toUtf8String(outputs[5].value), 'Hal Finney'));
+	test('root.str = "raffy"',					() => assert.equal(ethers.toUtf8String(outputs[6].value), 'raffy'));
+	test('root.map["a"].num = 2',				() => assert.equal(ethers.toBigInt(outputs[7].value), 2n));
+	test('root.map["a"].map["b"].str = "eth"',	() => assert.equal(ethers.toUtf8String(outputs[8].value), "eth"));
 
-let call0 = await builder.makeCall(storage_pointer);
-
-let r0 = GatewayRequest.decode(call0);
-
-assert.equal(call0, r0.encode());
-
-let r1 = GatewayRequest.create();
-r1.push(storage_pointer.target); r1.focus();
-r1.collect(0);
-r1.output(0); r1.focus();
-r1.push(0); r1.add(); r1.collect(0);
-r1.push(1); r1.add(); r1.collect(1);
-r1.push(2); r1.add(); r1.push(1);
-r1.push(2); r1.add(); r1.output(1);
-
-assert.equal(call0, r1.encode());
-
-let me = await MultiExpander.latest(foundry.provider);
-
-let outputs = await MultiExpander.resolved(await me.eval(r0.ops, r0.inputs));
-
-console.log(outputs);
-
-foundry.shutdown();
-
-
+});
