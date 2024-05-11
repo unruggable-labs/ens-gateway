@@ -4,7 +4,7 @@ import {GatewayRequest, MultiExpander} from '../../src/MultiExpander.js';
 import assert from 'node:assert/strict';
 import {test, after} from 'node:test';
 
-test('SlotDataReader', async () => {
+test('Clowes', async () => {
 	
 	let foundry = await Foundry.launch();
 	after(() => foundry.shutdown());
@@ -15,9 +15,9 @@ test('SlotDataReader', async () => {
 	// deploy pointer to storage example
 	let storage_pointer = await foundry.deploy({sol: `
 		contract Pointer {
-			address a;
-			constructor(address _a) {
-				a = _a;
+			address _a;
+			constructor(address a) {
+				_a = a;
 			}
 		}
 	`, args: [storage]});
