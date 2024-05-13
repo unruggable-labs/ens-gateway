@@ -19,7 +19,7 @@ let B = await foundry.deploy({sol: `
 
 
 let r = GatewayRequest.create();
-//r.push(A.target);
+r.push(A.target);
 r.push(foundry.wallets.admin.address);
 r.push(ethers.toBeHex(0, 32));
 r.target_first();
