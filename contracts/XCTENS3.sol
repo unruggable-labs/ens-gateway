@@ -82,7 +82,7 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 		// function _node(uint256 token) internal view returns (bytes32) {
 		//     return keccak256(abi.encodePacked(_ownerOf(token), token));
 		// }
-		r.push(slot); r.add(); r.push(token); r.output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
+		r.push(slot); r.add(); r.push(token); r.push_output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); 
 	}
 	function _fetch_addr(GatewayRequest memory r, uint256 token, uint256 cty) internal pure {
 		_prepare_node(r, SLOT_ADDRS, token); r.push(cty); r.follow(); r.collect(1);

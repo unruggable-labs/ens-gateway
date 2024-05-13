@@ -6,20 +6,37 @@ import {SmartCache} from './SmartCache.js';
 const MAX_OUTPUTS = 255;
 const MAX_INPUTS = 255;
 
-const OP_FOCUS			= 1;
-const OP_COLLECT		= 2;
+const OP_TARGET			= 1;
+const OP_TARGET_FIRST	= 2;
+
+const OP_COLLECT		= 5;
+const OP_COLLECT_FIRST  = 6;
+
 const OP_PUSH			= 10;
 const OP_PUSH_OUTPUT	= 11;
-//const OP_PUSH_BYTE		= 12;
+const OP_PUSH_SLOT		= 12;
+
 const OP_SLOT_ADD		= 20;
 const OP_SLOT_FOLLOW	= 21;
+const OP_SLOT_SET		= 22;
+
 const OP_STACK_KECCAK	= 30;
 const OP_STACK_CONCAT   = 31;
 const OP_STACK_SLICE	= 32;
+const OP_STACK_FIRST	= 33;
 
 export const GATEWAY_ABI = new ethers.Interface([
 	`function fetch(bytes context, tuple(bytes, bytes[]) request) returns (bytes memory)`
 ]);
+
+function uint256_from_bytes(hex) {
+	// the following should be equivalent to EVMProofHelper._toUint256()
+	return hex === '0x' ? 0n : BigInt(hex.slice(0, 66));
+}
+function address_from_bytes(hex) {
+	// the following should be equivalent to: address(uint160(_toUint256(x)))
+	return '0x' + (hex.length >= 66 ? hex.slice(26, 66) : hex.slice(2).padStart(40, '0').slice(-40)).toLowerCase();
+}
 
 export class GatewayRequest {
 	static create(n = 1024) {
@@ -63,9 +80,15 @@ export class GatewayRequest {
 		this.buf[0] = oi + 1;
 		return oi;
 	}
-	focus() { this._add_op(OP_FOCUS); }
+	focus() { this._add_op(OP_TARGET); }
+	target_first() { this._add_op(OP_TARGET_FIRST); }
 	collect(step) {
 		this._add_op(OP_COLLECT);
+		this._add_op(step);
+		return this._add_output();
+	}
+	collect_first(step) {
+		this._add_op(OP_COLLECT_FIRST);
 		this._add_op(step);
 		return this._add_output();
 	}
@@ -76,7 +99,8 @@ export class GatewayRequest {
 		this._add_op(OP_PUSH);
 		this._add_op(this._add_input(x));
 	}
-	output(oi) {
+	push_slot() { this._add_op(OP_PUSH_SLOT); }
+	push_output(oi) {
 		this._add_op(OP_PUSH_OUTPUT);
 		this._add_op(oi);
 	}
@@ -87,8 +111,10 @@ export class GatewayRequest {
 	}
 	follow() { this._add_op(OP_SLOT_FOLLOW); }
 	add()    { this._add_op(OP_SLOT_ADD); }
+	set()    { this._add_op(OP_SLOT_SET); }
 	keccak() { this._add_op(OP_STACK_KECCAK); }
 	concat() { this._add_op(OP_STACK_CONCAT); }
+	first()  { this._add_op(OP_STACK_FIRST); }
 }
 
 export class MultiExpander {
@@ -106,17 +132,19 @@ export class MultiExpander {
 	constructor(provider, block, cache) {
 		this.provider = provider;
 		this.block = block;
-		this.cache = cache;
-		if (cache === undefined) cache = new SmartCache(); // this is probably always worth while (use other falsy to disable)
+		this.cache = cache || new SmartCache();
 		this.max_bytes = 1 << 13; // 8KB
+	}
+	async getExists(target) {
+		return this.cache.get(target, t => this.provider.getCode(t, this.block).then(x => x.length > 2));
 	}
 	async getStorage(target, slot) {
 		slot = ethers.toBeHex(slot);
-		if (this.cache) {
-			return this.cache.get(`${target}:${slot}`, () => this.provider.getStorage(target, slot, this.block));
-		} else {
-			return this.provider.getStorage(target, slot, this.block);
-		}
+		return this.cache.get(`${target}:${slot}`, async () => {
+			let value = await this.provider.getStorage(target, slot, this.block)
+			if (value !== ethers.ZeroHash) this.cache.add(target, true);
+			return value;
+		});
 	}
 	async prove(outputs) {
 		let targets = new Map();
@@ -134,7 +162,7 @@ export class MultiExpander {
 		// https://github.com/ethereum/go-ethereum/blob/9f96e07c1cf87fdd4d044f95de9c1b5e0b85b47f/internal/ethapi/api.go#L707 (no limit, just payload size)
 		await Promise.all(Array.from(targets, async ([target, bucket]) => {
 			let slots = [...bucket.keys()];
-			let proof = await this.provider.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x)), this.block]);
+			let proof = await this.provider.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x, 32)), this.block]);
 			bucket.proof = proof.accountProof;
 			slots.forEach((key, i) => bucket.set(key, proof.storageProof[i].proof));
 		}));
@@ -146,7 +174,7 @@ export class MultiExpander {
 	}
 	async eval(ops, inputs) {
 		//console.log({ops, inputs});
-		let pos = 0;
+		let pos = 1; // skip # outputs
 		let slot = 0n;
 		let target;
 		let outputs = [];
@@ -160,17 +188,45 @@ export class MultiExpander {
 			if (!stack.length) throw new Error('stack underflow');
 			return stack.pop();
 		};
-		const expected = read_byte();
-		while (pos < ops.length) {
+		//const expected = read_byte();
+		outer: while (pos < ops.length) {
 			let op = ops[pos++];
 			try {
 				switch (op) {
-					case OP_FOCUS: {
+					case OP_TARGET: {
 						target = pop_stack();
+						slot = 0n;
+						break;
+					}
+					case OP_TARGET_FIRST: {
+						let exists;
+						while (stack.length && !exists) {
+							target = address_from_bytes(await stack.pop());
+							outputs.push({
+								target, 
+								slots: [], 
+								value() { return null; }
+							});
+							exists = await this.getExists(target);
+						}
+						if (!exists) break outer;
+						stack.length = 0;
+						slot = 0n;
 						break;
 					}
 					case OP_COLLECT: {
 						outputs.push(this.read_output(target, slot, read_byte()));
+						slot = 0n;
+						break;
+					}
+					case OP_COLLECT_FIRST: {
+						let step = read_byte();
+						while (stack.length) { // TODO: make this parallel or batched?
+							let output = await this.read_output(target, uint256_from_bytes(await stack.pop()), step);
+							outputs.push(output);
+							if (step == 0 ? uint256_from_bytes(await output.value()) : output.size) break;
+						}
+						stack.length = 0;
 						slot = 0n;
 						break;
 					}
@@ -186,8 +242,16 @@ export class MultiExpander {
 						stack.push(outputs[read_byte()].then(x => x.value()));
 						break;
 					}
+					case OP_PUSH_SLOT: {
+						stack.push(ethers.toBeHex(slot, 32));
+						break;
+					}
 					case OP_SLOT_ADD: {
-						slot += ethers.toBigInt(await pop_stack());
+						slot += uint256_from_bytes(await pop_stack());
+						break;
+					}
+					case OP_SLOT_SET: {
+						slot = uint256_from_bytes(await pop_stack());
 						break;
 					}
 					case OP_SLOT_FOLLOW: {
@@ -210,34 +274,56 @@ export class MultiExpander {
 						stack.push(ethers.dataSlice(await pop_stack(), x, x + n));
 						break;
 					}
-					default: new Error('unknown op');
+					case OP_STACK_FIRST: {
+						let first = '0x';
+						console.log(stack);
+						while (stack.length) {
+							let v = await stack.pop();
+							if (!/^0x0*$/.test(v)) {
+								first = v;
+								break;
+							}
+						}
+						stack.length = 0;
+						stack.push(first);
+						break;
+					}
+					default: throw new Error('unknown op');
 				}
 			} catch (err) {
-				Object.assign(err, {op, ops, pos, inputs, stack, target, slot});
+				Object.assign(err, {ops, inputs, state: {op, pos, target, slot, stack}});
 				throw err;
 			}
 		}
-		if (outputs.length != expected) {
-			throw Object.assign(new Error('output mismatch', {outputs, expected}));
-		}
+		// this is no longer true with _FIRST ops
+		// nor is this true if we allow early termination 
+		// if (outputs.length != expected) {
+		// 	throw Object.assign(new Error('output mismatch', {outputs, expected}));
+		// }
 		return Promise.all(outputs);
 	}
 	async read_output(target, slot, step) {
 		target = await target;
 		if (!target) throw Object.assign(new Error('invalid target'), {target});
-		// the following should be equivalent to: address(uint160(_toUint256(x)))
-		target = '0x' + (target.length >= 66 ? target.slice(26, 66) : target.slice(2).padStart(40, '0').slice(-40)).toLowerCase();
-		//console.log({target, slot, step});
+		target = address_from_bytes(target);
+		console.log({target, slot, step});
+		//if (step === undefined) return {target, slots: [], value}
 		let first = await this.getStorage(target, slot);
 		let size = parseInt(first.slice(64), 16); // last byte
-		if (step == 0) { // 1 slot is the same thing is bytes(32)
-			step = 1;
-			size = 64;
-		}
-		if (step == 1 && (size & 1) == 0) {
-			let p = Promise.resolve(ethers.dataSlice(first, 0, size >> 1));
+		if (step == 0) {
+			let p = Promise.resolve(first);
 			return {
 				target,
+				size: size > 0 ? 32 : 0,
+				slots: [slot],
+				value: () => p
+			};
+		} else if (step == 1 && (size & 1) == 0) {
+			size >>= 1;
+			let p = Promise.resolve(ethers.dataSlice(first, 0, size));
+			return {
+				target,
+				size,
 				slots: [slot],
 				value: () => p
 			};
@@ -251,6 +337,7 @@ export class MultiExpander {
 		return {
 			target,
 			slots,
+			size,
 			value() {
 				let p = Promise.all(this.slots.slice(1).map(getStorage)).then(v => {
 					return ethers.dataSlice(ethers.concat(v), 0, size);
