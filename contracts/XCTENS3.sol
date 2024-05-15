@@ -49,7 +49,7 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 		if (label.length == 0) return _resolveBasename(node, request);
 		uint256 token = uint256(keccak256(bytes(label)));
 		GatewayRequest memory r = EVMFetcher.create();
-		r.push(_xctens); r.focus();
+		r.push(_xctens); r.target();
 		r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); r.collect(0);
 		bytes4 selector = bytes4(request);
 		if (selector == IAddrResolver.addr.selector) {

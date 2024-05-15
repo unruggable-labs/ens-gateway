@@ -22,8 +22,8 @@ contract MultiTargetDemo is EVMFetchTarget2 {
 	function teamnick() external view returns (address, uint256, string memory, address, string memory) {
 		GatewayRequest memory r = EVMFetcher.create();
 		uint256 token = uint256(keccak256(bytes("raffy")));
-		r.push(TEAMNICK_POINTER); r.focus(); r.collect(0);
-		r.push_output(0); r.focus(); 
+		r.push(TEAMNICK_POINTER); r.target(); r.collect(0);
+		r.push_output(0); r.target(); 
 		r.push(8); r.add(); r.collect(0);
 		r.push(9); r.add(); r.collect(1);
 		r.push(7); r.add(); r.push(token); r.follow(); r.collect(0);
@@ -50,7 +50,7 @@ contract MultiTargetDemo is EVMFetchTarget2 {
 	function cypher() external view returns (address, bytes memory, string memory) {
 		GatewayRequest memory r = EVMFetcher.create();
 		uint256 token = uint256(keccak256(bytes("slobo")));
-		r.push(CYPHER_NFT); r.focus();
+		r.push(CYPHER_NFT); r.target();
 		r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); r.collect(0);
 		r.push(SLOT_ADDRS); r.add(); r.push(token); r.push_output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); r.push(60); r.follow(); r.collect(1);
 		r.push(SLOT_TEXTS); r.add(); r.push(token); r.push_output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); r.push(bytes("com.twitter")); r.follow(); r.collect(1);

@@ -80,7 +80,7 @@ export class GatewayRequest {
 		this.buf[0] = oi + 1;
 		return oi;
 	}
-	focus() { this._add_op(OP_TARGET); }
+	target() { this._add_op(OP_TARGET); }
 	target_first() { this._add_op(OP_TARGET_FIRST); }
 	collect(step) {
 		this._add_op(OP_COLLECT);
@@ -142,12 +142,13 @@ export class MultiExpander {
 		slot = ethers.toBeHex(slot);
 		return this.cache.get(`${target}:${slot}`, async () => {
 			let value = await this.provider.getStorage(target, slot, this.block)
-			if (value !== ethers.ZeroHash) this.cache.add(target, true);
+			//if (value !== ethers.ZeroHash) this.cache.add(target, true); // TODO: only do this if positive proof
 			return value;
 		});
 	}
 	async prove(outputs) {
 		let targets = new Map();
+		let buckets = [];
 		for (let output of outputs) {
 			let bucket = targets.get(output.target);
 			if (!bucket) {
@@ -155,7 +156,7 @@ export class MultiExpander {
 				bucket.index = targets.size;
 				targets.set(output.target, bucket);
 			}
-			output.bucket = bucket;
+			buckets.push(bucket);
 			output.slots.forEach(x => bucket.set(x, null));
 		}
 		// TODO: check eth_getProof limits
@@ -168,12 +169,15 @@ export class MultiExpander {
 		}));
 		return [
 			Array.from(targets.values(), x => x.proof),
-			outputs.map(output => [output.bucket.index, output.slots.map(x => output.bucket.get(x))])
+			outputs.map((output, i) => {
+				let bucket = buckets[i];
+				return [bucket.index, output.slots.map(x => bucket.get(x))];
+			})
 		];
 		//return outputs.map(output => [output.bucket.proof, output.slots.map(x => output.bucket.get(x))]);
 	}
 	async eval(ops, inputs) {
-		//console.log({ops, inputs});
+		console.log({ops, inputs});
 		let pos = 1; // skip # outputs
 		let slot = 0n;
 		let target;
@@ -276,7 +280,6 @@ export class MultiExpander {
 					}
 					case OP_STACK_FIRST: {
 						let first = '0x';
-						console.log(stack);
 						while (stack.length) {
 							let v = await stack.pop();
 							if (!/^0x0*$/.test(v)) {
@@ -306,19 +309,19 @@ export class MultiExpander {
 		target = await target;
 		if (!target) throw Object.assign(new Error('invalid target'), {target});
 		target = address_from_bytes(target);
-		console.log({target, slot, step});
+		//console.log({target, slot, step});
 		//if (step === undefined) return {target, slots: [], value}
 		let first = await this.getStorage(target, slot);
 		let size = parseInt(first.slice(64), 16); // last byte
-		if (step == 0) {
+		if (step == 0) { // bytes32
 			let p = Promise.resolve(first);
 			return {
 				target,
-				size: size > 0 ? 32 : 0,
+				size: size > 0 ? 32 : 0, // size is falsy on zero 
 				slots: [slot],
 				value: () => p
 			};
-		} else if (step == 1 && (size & 1) == 0) {
+		} else if (step == 1 && !(size & 1)) { // small bytes
 			size >>= 1;
 			let p = Promise.resolve(ethers.dataSlice(first, 0, size));
 			return {
@@ -333,13 +336,13 @@ export class MultiExpander {
 		size = Number(size);
 		let offset = BigInt(ethers.solidityPackedKeccak256(['uint256'], [slot]));
 		let slots = [slot, ...Array.from({length: (size + 31) >> 5}, (_, i) => offset + BigInt(i))];
-		const getStorage = this.getStorage.bind(this, target);
 		return {
+			parent: this,
 			target,
 			slots,
 			size,
 			value() {
-				let p = Promise.all(this.slots.slice(1).map(getStorage)).then(v => {
+				let p = Promise.all(this.slots.slice(1).map(x => this.parent.getStorage(this.target, x))).then(v => {
 					return ethers.dataSlice(ethers.concat(v), 0, size);
 				});
 				this.value = () => p;

@@ -11,13 +11,6 @@ let A = await foundry.deploy({sol: `
 	}
 `});
 
-let B = await foundry.deploy({sol: `
-	contract B {
-		uint256 x = 1;
-	}
-`});
-
-
 let r = GatewayRequest.create();
 r.push(A.target);
 r.push(foundry.wallets.admin.address);

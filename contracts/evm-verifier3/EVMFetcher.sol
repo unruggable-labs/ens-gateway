@@ -60,10 +60,10 @@ library EVMFetcher {
 	}
 	
 	// path operations
-	function focus(GatewayRequest memory req) internal pure {
+	function target(GatewayRequest memory req) internal pure {
 		addOp(req, OP_TARGET);
 	}
-	function focus_first(GatewayRequest memory req) internal pure {
+	function target_first(GatewayRequest memory req) internal pure {
 		addOp(req, OP_TARGET_FIRST);
 	}
 

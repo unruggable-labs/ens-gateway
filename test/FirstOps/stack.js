@@ -24,7 +24,7 @@ let B = await foundry.deploy({sol: `
 
 let r = GatewayRequest.create();
 r.push(B.target);
-r.focus();
+r.target();
 r.push(0); r.add(); r.collect(0); // a
 r.push(1); r.add(); r.collect(0); // b
 r.push(2); r.add(); r.collect(1); // c

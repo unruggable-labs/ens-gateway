@@ -4,7 +4,8 @@ pragma solidity ^0.8.23;
 import "./GatewayRequest.sol";
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {SecureMerkleTrie} from "../trie-with-nonexistance/SecureMerkleTrie.sol";
-//import "./VM.sol";
+
+import "forge-std/console2.sol";
 
 struct StateProof {
 	uint256 accountIndex;
@@ -34,7 +35,13 @@ library EVMProofHelper {
 	// proof verification
 	function getStorageRoot(bytes32 stateRoot, address target, bytes[] memory witness) private pure returns (bool exists, bytes32 storageRoot) {
 		bytes memory v;
+		console2.log("target=%s", target);
+		console2.logBytes32(stateRoot);
+		for (uint256 i; i < witness.length; i++) {
+			console2.logBytes(witness[i]);
+		}
 		(exists, v) = SecureMerkleTrie.get(abi.encodePacked(target), witness, stateRoot);
+		console2.log("exists=%s", exists);
 		if (exists) {
 			RLPReader.RLPItem[] memory accountState = RLPReader.readList(v);
 			storageRoot = bytes32(RLPReader.readBytes(accountState[2]));
@@ -96,8 +103,17 @@ library EVMProofHelper {
 	function add_output(VMState memory state, bytes memory v) internal pure {
 		state.outputs[state.outputIndex++] = v;
 	}
+	function dump(VMState memory state) internal pure {
+		for (uint256 i; i < state.stackIndex; i++) {
+			console2.log("[stack=%s size=%s]", i, state.stack[i].length);
+			console2.logBytes(state.stack[i]);
+		}
+	}
 
 	function getStorageValues(GatewayRequest memory req, bytes32 stateRoot, bytes[][] memory accountProofs, StateProof[] memory stateProofs) internal pure returns(bytes[] memory) {
+		
+		console2.log("[accounts=%s states=%s]", accountProofs.length, stateProofs.length);
+
 		VMState memory state;
 		state.stack = new bytes[](16);
 		state.outputs = new bytes[](uint8(req.ops[0]));
@@ -119,7 +135,9 @@ library EVMProofHelper {
 				// throw if none exist
 				// set target to found account
 				bool exists;
+				state.dump();
 				while (state.stackIndex != 0 && !exists) {
+					console2.log("try %s at index %s for %s", state.stackIndex, stateProofs[state.proofIndex].accountIndex);
 					(exists, state.storageRoot) = getStorageRoot(
 						stateRoot,
 						state.pop_address(),

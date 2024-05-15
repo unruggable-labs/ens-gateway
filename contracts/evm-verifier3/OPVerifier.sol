@@ -35,13 +35,13 @@ contract OPVerifier is IEVMVerifier {
 		uint256 outputIndex = abi.decode(context, (uint256));
 		(
 			Types.OutputRootProof memory outputRootProof, 
-			bytes[][] memory accountProofs, 
+			bytes[][] memory accountProofs,
 			StateProof[] memory stateProofs
 		) = abi.decode(proof, (Types.OutputRootProof, bytes[][], StateProof[]));
-		uint256 outputCount = uint8(req.ops[0]);
-		if (outputCount != stateProofs.length) {
-			revert OutputValuesMismatch(outputCount, stateProofs.length);
-		}
+		//uint256 outputCount = uint8(req.ops[0]);
+		// if (outputCount != stateProofs.length) {
+		// 	revert OutputValuesMismatch(outputCount, stateProofs.length);
+		// }
 		Types.OutputProposal memory output = oracle.getL2Output(outputIndex);
 		bytes32 expectedRoot = Hashing.hashOutputRootProof(outputRootProof);
 		if (output.outputRoot != expectedRoot) {

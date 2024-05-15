@@ -6,11 +6,11 @@ contract RequestBuilder {
 	using EVMFetcher for GatewayRequest;
 	function makeCall(address a) external pure returns (bytes memory) {
 		GatewayRequest memory r = EVMFetcher.create();
-		r.push(a); r.focus(); 
+		r.push(a); r.target(); 
 		// #0: address (from pointer)
 		r.collect(0); 
 		// target = #0
-		r.push_output(0); r.focus();
+		r.push_output(0); r.target();
 		// #1: uint256 latest 
 		r.collect(0);
 		// #2: string name

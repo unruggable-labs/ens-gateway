@@ -4,10 +4,9 @@ pragma solidity ^0.8.23;
 import {GatewayRequest} from "./GatewayRequest.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";
 import {EVMFetcher} from "./EVMFetcher.sol";
-//import {OffchainNext} from "@resolverworks/OffchainNext-contracts/src/OffchainNext.sol";
+
 error OffchainLookup(address from, string[] urls, bytes request, bytes4 callback, bytes carry);
 
-//abstract contract EVMFetchTarget is OffchainNext {
 abstract contract EVMFetchTarget {
 
 	struct Session {
@@ -43,6 +42,12 @@ abstract contract EVMFetchTarget {
 		} else {
 			assembly { revert(add(ret, 32), mload(ret)) }
 		}
+	}
+
+	// EXPERIMENTAL
+	// other ideas: return (values, request, carry)
+	function echoCallback(bytes[] calldata v, bytes calldata) external pure returns (bytes[] memory) {
+		return v;
 	}
 
 }

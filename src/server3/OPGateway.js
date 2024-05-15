@@ -37,6 +37,7 @@ export class OPGateway extends EZCCIP {
 				let expander = new MultiExpander(this.provider2, output.block, output.slot_cache);
 				let values = await expander.eval(ethers.getBytes(ops), inputs);
 				let [account_proofs, state_proofs] = await expander.prove(values);
+				//console.log({values, account_proofs, state_proofs});
 				return ABI_CODER.encode(
 					[
 						'tuple(bytes32 version, bytes32 stateRoot, bytes32 messagePasserStorageRoot, bytes32 latestBlockhash)', // OutputRootProof
