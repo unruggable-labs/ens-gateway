@@ -122,6 +122,7 @@ contract XCTENS3 is SubExtResolver, EVMFetchTarget2 {
 			bytes32 keyhash = keccak256(bytes(key));
 			if (keyhash == keccak256(bytes("description"))) {
 				GatewayRequest memory r = EVMFetcher.create();
+				r.push(_xctens); r.target();
 				r.push(SLOT_SUPPLY); r.add(); r.collect(0);
 				fetch(_verifier, r, this.descriptionCallback.selector, '');
 			}

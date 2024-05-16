@@ -2,7 +2,7 @@
 	"type": "module",
 	"dependencies": {
 		"@adraffy/blocksmith": "^0.0.20",
-		"@resolverworks/ezccip": "^0.0.9",
+		"@resolverworks/ezccip": "^0.0.10",
 		"ethers": "^6.12.0"
 	},
 	"scripts": {
