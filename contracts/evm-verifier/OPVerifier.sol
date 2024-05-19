@@ -5,9 +5,7 @@ import { IEVMVerifier } from "./IEVMVerifier.sol";
 import { StateProof, EVMProofHelper } from "./EVMProofHelper.sol";
 
 import { RLPReader } from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
-import { Types } from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
-//import { Hashing } from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
-import { Hashing } from "../forge-import-bug/Hashing.sol";
+import {Hashing, Types} from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
 
 struct OPWitnessData {
     uint256 l2OutputIndex;

@@ -136,31 +136,36 @@ export class MultiExpander {
 		this.max_bytes = 1 << 13; // 8KB
 	}
 	async getExists(target) {
+		// assuming this is cheaper than eth_getProof with 0 slots
+		// why isn't there eth_getCodehash?
 		return this.cache.get(target, t => this.provider.getCode(t, this.block).then(x => x.length > 2));
 	}
 	async getStorage(target, slot) {
 		slot = ethers.toBeHex(slot);
 		return this.cache.get(`${target}:${slot}`, async () => {
 			let value = await this.provider.getStorage(target, slot, this.block)
-			//if (value !== ethers.ZeroHash) this.cache.add(target, true); // TODO: only do this if positive proof
+			if (value !== ethers.ZeroHash) {
+				// any nonzero slot => code exists => contract => non-null storage trie
+				this.cache.add(target, true);
+			}
 			return value;
 		});
 	}
 	async prove(outputs) {
 		let targets = new Map();
-		let buckets = [];
-		for (let output of outputs) {
+		let buckets = outputs.map(output => {
 			let bucket = targets.get(output.target);
 			if (!bucket) {
 				bucket = new Map();
 				bucket.index = targets.size;
 				targets.set(output.target, bucket);
 			}
-			buckets.push(bucket);
 			output.slots.forEach(x => bucket.set(x, null));
-		}
+			return bucket;
+		});
 		// TODO: check eth_getProof limits
-		// https://github.com/ethereum/go-ethereum/blob/9f96e07c1cf87fdd4d044f95de9c1b5e0b85b47f/internal/ethapi/api.go#L707 (no limit, just payload size)
+		// https://github.com/ethereum/go-ethereum/blob/9f96e07c1cf87fdd4d044f95de9c1b5e0b85b47f/internal/ethapi/api.go#L707 
+		// 20240501: no limit, just response size
 		await Promise.all(Array.from(targets, async ([target, bucket]) => {
 			let slots = [...bucket.keys()];
 			let proof = await this.provider.send('eth_getProof', [target, slots.map(x => ethers.toBeHex(x, 32)), this.block]);

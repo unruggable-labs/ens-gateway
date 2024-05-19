@@ -6,10 +6,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IExtendedResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/IExtendedResolver.sol";
 
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
-import {Types} from "@eth-optimism/contracts-bedrock/src/libraries/Types.sol";
-
-//import {Hashing} from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
-import {Hashing} from "./forge-import-bug/Hashing.sol";
+import {Hashing, Types} from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
 
 //import {SecureMerkleTrie} from "@eth-optimism/contracts-bedrock/src/libraries/trie/SecureMerkleTrie.sol";
 import {SecureMerkleTrie} from "./trie-with-nonexistance/SecureMerkleTrie.sol";
