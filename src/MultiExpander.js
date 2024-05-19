@@ -57,7 +57,7 @@ export class GatewayRequest {
 		this.inputs = [];
 	}
 	encode(context) {
-		return GATEWAY_ABI.encodeFunctionData('fetch', [context ?? this.content ?? '0x', [this.ops, this.inputs]]);
+		return GATEWAY_ABI.encodeFunctionData('fetch', [context ?? this.context ?? '0x', [this.ops, this.inputs]]);
 	}
 	get ops() {
 		return this.buf.slice(0, this.pos);
@@ -243,12 +243,8 @@ export class MultiExpander {
 						stack.push(inputs[read_byte()]);
 						break;
 					}
-					// case OP_PUSH_BYTE: {
-					// 	stack.push(ethers.toBeHex(read_byte(), 32));
-					// 	break;
-					// }
 					case OP_PUSH_OUTPUT: {
-						stack.push(outputs[read_byte()].then(x => x.value()));
+						stack.push(Promise.resolve(outputs[read_byte()]).then(x => x.value()));
 						break;
 					}
 					case OP_PUSH_SLOT: {
