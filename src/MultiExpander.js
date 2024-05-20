@@ -44,28 +44,33 @@ export class GatewayRequest {
 		req.push(target);
 		req.target();
 		for (let cmd of commands) {
-			let v = ethers.getBytes(cmd);
-			req.push(constants[v[1]]); // first op is initial slot offset
-			req.add();
-			for (let i = 2; i < v.length; i++) {
-				let op = v[i];
-				if (op === 0xFF) break;
-				let operand = op & 0x1F;
-				switch (op >> 5) {
-					case 0: { // OP_CONSTANT
-						req.push_bytes(constants[operand]);
-						req.follow();
-						continue;
+			try {
+				let v = ethers.getBytes(cmd);
+				req.push(constants[v[1]]); // first op is initial slot offset
+				req.add();
+				for (let i = 2; i < v.length; i++) {
+					let op = v[i];
+					if (op === 0xFF) break;
+					let operand = op & 0x1F;
+					switch (op >> 5) {
+						case 0: { // OP_CONSTANT
+							req.push_bytes(constants[operand]);
+							req.follow();
+							continue;
+						}
+						case 1: { // OP_BACKREF
+							req.push_output(operand);
+							req.follow();
+							continue;
+						}
+						default: throw new Error(`unknown op: ${op}`);
 					}
-					case 1: { // OP_BACKREF
-						req.push_output(operand);
-						req.follow();
-						continue;
-					}
-					default: throw new Error(`unknown op`, {op});
 				}
+				req.collect(v[0] & 1);
+			} catch (err) {
+				Object.assign(err, {cmd});
+				throw err;
 			}
-			req.collect(v[0] & 1);
 		}
 		return req;
 	}
@@ -137,7 +142,7 @@ export class GatewayRequest {
 		this._add_op(x);
 		this._add_op(n);
 	}
-	concat(n = 2) { 
+	concat(n) { 
 		this._add_op(OP_STACK_CONCAT); 
 		this._add_op(n);
 	}
@@ -299,9 +304,8 @@ export class MultiExpander {
 						break;
 					}
 					case OP_STACK_CONCAT: {
-						let n = read_byte() || stack.length;
-						if (stack.length < n) throw new Error('concat underflow');
-						stack.splice(stack.length-n, n, ethers.concat(await Promise.all(stack.slice(-n))));
+						let n = read_byte();
+						stack.splice(Math.max(0, stack.length-n), n, n ? ethers.concat(await Promise.all(stack.slice(-n))) : '0x');
 						break;
 					}
 					case OP_STACK_SLICE: {

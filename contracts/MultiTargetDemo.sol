@@ -52,8 +52,8 @@ contract MultiTargetDemo is EVMFetchTarget2 {
 		uint256 token = uint256(keccak256(bytes("slobo")));
 		r.push(CYPHER_NFT); r.target();
 		r.push(SLOT_OWNERS); r.add(); r.push(token); r.follow(); r.collect(0);
-		r.push(SLOT_ADDRS); r.add(); r.push(token); r.push_output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); r.push(60); r.follow(); r.collect(1);
-		r.push(SLOT_TEXTS); r.add(); r.push(token); r.push_output(0); r.slice(12, 20); r.concat(); r.keccak(); r.follow(); r.push(bytes("com.twitter")); r.follow(); r.collect(1);
+		r.push(SLOT_ADDRS); r.add(); r.push(token); r.push_output(0); r.slice(12, 20); r.concat(2); r.keccak(); r.follow(); r.push(60); r.follow(); r.collect(1);
+		r.push(SLOT_TEXTS); r.add(); r.push(token); r.push_output(0); r.slice(12, 20); r.concat(2); r.keccak(); r.follow(); r.push(bytes("com.twitter")); r.follow(); r.collect(1);
 		fetch(verifier, r, this.cypherCallback.selector, '');
 	}
 

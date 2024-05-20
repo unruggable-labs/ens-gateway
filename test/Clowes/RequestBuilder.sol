@@ -30,7 +30,7 @@ contract RequestBuilder {
 			r.push(2); r.add(); r.push_str("b"); r.follow();
 				r.push(1); r.add(); r.collect(1);
 		// #9: highscorers[keccak(...)]
-		r.push(3); r.add(); r.push_output(5); r.slice(0, 3); r.push_output(3); r.slice(16, 16); r.concat(); r.keccak(); r.follow(); r.collect(1);
+		r.push(3); r.add(); r.push_output(5); r.slice(0, 3); r.push_output(3); r.slice(16, 16); r.concat(2); r.keccak(); r.follow(); r.collect(1);
 		return r.encode('');
 	}
 }

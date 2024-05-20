@@ -171,9 +171,12 @@ library EVMProofHelper {
 				state.push(Bytes.slice(state.pop(), state.next_op(), state.next_op()));
 			} else if (op == OP_STACK_KECCAK) {
 				state.push(abi.encodePacked(keccak256(state.pop())));
-			} else if (op == OP_STACK_CONCAT) { // [..., a, b] => [..., a+b]
-				bytes memory v = state.pop();
-				state.push(abi.encodePacked(state.pop(), v));
+			} else if (op == OP_STACK_CONCAT) {
+				bytes memory v;
+				for (uint256 n = state.next_op(); n != 0 && state.stackIndex != 0; n -= 1) {
+					v = bytes.concat(state.pop(), v);
+				}
+				state.push(v);
 			} else if (op == OP_STACK_FIRST) {
 				bytes memory v;
 				while (state.stackIndex != 0 && v.length == 0) {

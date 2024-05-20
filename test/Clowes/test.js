@@ -31,22 +31,22 @@ test('Clowes', async () => {
 
 	// confirm js builder is 1:1
 	let r = GatewayRequest.create();
-	r.push(storage_pointer.target); r.focus();
+	r.push(storage_pointer.target); r.target();
 	/********************************************************************************/
 	// #0: address (from pointer)
 	r.collect(0); 
 	// target = #0
-	r.output(0); r.focus();
+	r.push_output(0); r.target();
 	// #1: uint256 latest 
 	r.collect(0);
 	// #2: string name
 	r.push(1); r.add(); r.collect(1);
 	// #3: highscores[#1]
-	r.push(2); r.add(); r.output(1); r.follow(); r.collect(0);
+	r.push(2); r.add(); r.push_output(1); r.follow(); r.collect(0);
 	// #4: highscorers[#1]
-	r.push(3); r.add(); r.output(1); r.follow(); r.collect(1);
+	r.push(3); r.add(); r.push_output(1); r.follow(); r.collect(1);
 	// #5: realnames[#4]
-	r.push(4); r.add(); r.output(4); r.follow(); r.collect(1);
+	r.push(4); r.add(); r.push_output(4); r.follow(); r.collect(1);
 	// #6: root.str
 	r.push(12+1); r.add(); r.collect(1);
 	// #7: root.map["a"].num
@@ -56,7 +56,7 @@ test('Clowes', async () => {
 		r.push(2); r.add(); r.push_str("b"); r.follow();
 			r.push(1); r.add(); r.collect(1);
 	// #9: uint256(keccak256(abi.encodePacked("Hal", uint128(12345)))
-	r.push(3); r.add(); r.output(5); r.slice(0, 3); r.output(3); r.slice(16, 16); r.concat(); r.keccak(); r.follow(); r.collect(1);
+	r.push(3); r.add(); r.push_output(5); r.slice(0, 3); r.push_output(3); r.slice(16, 16); r.concat(2); r.keccak(); r.follow(); r.collect(1);
 	/********************************************************************************/
 	test('GatewayRequest: solc == js', () => assert.equal(call0, r.encode()));
 
