@@ -39,22 +39,50 @@ function address_from_bytes(hex) {
 }
 
 export class GatewayRequest {
+	static from_v1(target, commands, constants) {
+		let req = this.create();
+		req.push(target);
+		req.target();
+		for (let cmd of commands) {
+			let v = ethers.getBytes(cmd);
+			req.push(constants[v[1]]); // first op is initial slot offset
+			req.add();
+			for (let i = 2; i < v.length; i++) {
+				let op = v[i];
+				if (op === 0xFF) break;
+				let operand = op & 0x1F;
+				switch (op >> 5) {
+					case 0: { // OP_CONSTANT
+						req.push_bytes(constants[operand]);
+						req.follow();
+						continue;
+					}
+					case 1: { // OP_BACKREF
+						req.push_output(operand);
+						req.follow();
+						continue;
+					}
+					default: throw new Error(`unknown op`, {op});
+				}
+			}
+			req.collect(v[0] & 1);
+		}
+		return req;
+	}
 	static create(n = 1024) {
-		return new this(n);
+		return new this(new Uint8Array(n));
 	} 
 	static decode(data) {
 		let [context, [ops, inputs]] = GATEWAY_ABI.decodeFunctionData('fetch', data);
-		let r = new this(0);
-		r.buf = ethers.getBytes(ops);
-		r.pos = r.buf.length;
-		r.inputs = inputs;
+		ops = ethers.getBytes(ops);
+		let r = new this(ops, inputs, ops.length);
 		r.context = context;
 		return r;
 	}
-	constructor(size) {
-		this.pos = 1;
-		this.buf = new Uint8Array(size); // this is MAX_OPs (this could just grow forever)
-		this.inputs = [];
+	constructor(buf, inputs = [], pos = 1) {
+		this.buf = buf;
+		this.pos = pos;
+		this.inputs = inputs;
 	}
 	encode(context) {
 		return GATEWAY_ABI.encodeFunctionData('fetch', [context ?? this.context ?? '0x', [this.ops, this.inputs]]);
@@ -63,7 +91,7 @@ export class GatewayRequest {
 		return this.buf.slice(0, this.pos);
 	}
 	_add_op(op) {
-		if ((op & 255) !== op) throw Object.assign(new Error('expected byte'), {op});
+		if ((op & 0xFF) !== op) throw Object.assign(new Error('expected byte'), {op});
 		let i = this.pos;
 		if (i === this.buf.length) throw new Error('op overflow');
 		this.buf[i] = op;
@@ -109,11 +137,14 @@ export class GatewayRequest {
 		this._add_op(x);
 		this._add_op(n);
 	}
+	concat(n = 2) { 
+		this._add_op(OP_STACK_CONCAT); 
+		this._add_op(n);
+	}
 	follow() { this._add_op(OP_SLOT_FOLLOW); }
 	add()    { this._add_op(OP_SLOT_ADD); }
 	set()    { this._add_op(OP_SLOT_SET); }
 	keccak() { this._add_op(OP_STACK_KECCAK); }
-	concat() { this._add_op(OP_STACK_CONCAT); }
 	first()  { this._add_op(OP_STACK_FIRST); }
 }
 
@@ -185,7 +216,7 @@ export class MultiExpander {
 		console.log({ops, inputs});
 		let pos = 1; // skip # outputs
 		let slot = 0n;
-		let target;
+		let target = '0x';
 		let outputs = [];
 		let stack = [];
 		const read_byte = () => {
@@ -199,18 +230,18 @@ export class MultiExpander {
 		};
 		//const expected = read_byte();
 		outer: while (pos < ops.length) {
-			let op = ops[pos++];
+			let op = read_byte();
 			try {
 				switch (op) {
 					case OP_TARGET: {
-						target = pop_stack();
+						target = address_from_bytes(await pop_stack());
 						slot = 0n;
 						break;
 					}
 					case OP_TARGET_FIRST: {
 						let exists;
 						while (stack.length && !exists) {
-							target = address_from_bytes(await stack.pop());
+							target = address_from_bytes(await pop_stack());
 							outputs.push({
 								target, 
 								slots: [], 
@@ -231,7 +262,7 @@ export class MultiExpander {
 					case OP_COLLECT_FIRST: {
 						let step = read_byte();
 						while (stack.length) { // TODO: make this parallel or batched?
-							let output = await this.read_output(target, uint256_from_bytes(await stack.pop()), step);
+							let output = await this.read_output(target, uint256_from_bytes(await pop_stack()), step);
 							outputs.push(output);
 							if (step == 0 ? uint256_from_bytes(await output.value()) : output.size) break;
 						}
@@ -268,7 +299,7 @@ export class MultiExpander {
 						break;
 					}
 					case OP_STACK_CONCAT: {
-						const n = 2;
+						let n = read_byte() || stack.length;
 						if (stack.length < n) throw new Error('concat underflow');
 						stack.splice(stack.length-n, n, ethers.concat(await Promise.all(stack.slice(-n))));
 						break;
@@ -282,7 +313,7 @@ export class MultiExpander {
 					case OP_STACK_FIRST: {
 						let first = '0x';
 						while (stack.length) {
-							let v = await stack.pop();
+							let v = await pop_stack();
 							if (!/^0x0*$/.test(v)) {
 								first = v;
 								break;
@@ -307,9 +338,6 @@ export class MultiExpander {
 		return Promise.all(outputs);
 	}
 	async read_output(target, slot, step) {
-		target = await target;
-		if (!target) throw Object.assign(new Error('invalid target'), {target});
-		target = address_from_bytes(target);
 		//console.log({target, slot, step});
 		//if (step === undefined) return {target, slots: [], value}
 		let first = await this.getStorage(target, slot);

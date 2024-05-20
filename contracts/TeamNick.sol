@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 
 // interfaces
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {IEVMVerifier} from "./evm-verifier/IEVMVerifier.sol";
+import {IEVMVerifier} from "./evm-verifier1/IEVMVerifier.sol";
 import {IExtendedResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/IExtendedResolver.sol";
 import {IAddrResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddrResolver.sol";
 import {IAddressResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profiles/IAddressResolver.sol";
@@ -13,10 +13,10 @@ import {ITextResolver} from "@ensdomains/ens-contracts/contracts/resolvers/profi
 // libraries
 import {BytesUtils} from "@ensdomains/ens-contracts/contracts/wrapper/BytesUtils.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {EVMFetcher} from "./evm-verifier/EVMFetcher.sol";
+import {EVMFetcher} from "./evm-verifier1/EVMFetcher.sol";
 
 // bases
-import {EVMFetchTarget} from "./evm-verifier/EVMFetchTarget.sol";
+import {EVMFetchTarget} from "./evm-verifier1/EVMFetchTarget.sol";
 
 contract TeamNick is IERC165, IExtendedResolver, EVMFetchTarget {
 	using BytesUtils for bytes;

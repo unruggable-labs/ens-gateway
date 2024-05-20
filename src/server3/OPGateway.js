@@ -6,15 +6,21 @@ import {MultiExpander} from '../MultiExpander.js';
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
 export class OPGateway extends EZCCIP {
-	static base_mainnet(a) {
+	static op_mainnet(a) {
+		// https://docs.optimism.io/chain/addresses
 		return new this({
-			// https://docs.base.org/docs/base-contracts
+			L2OutputOracle: '0xdfe97868233d1aa22e815a266982f2cf17685a27',
+			...a,
+		});
+	}
+	static base_mainnet(a) {
+		// https://docs.base.org/docs/base-contracts
+		return new this({
 			L2OutputOracle: '0x56315b90c40730925ec5485cf004d835058518A0',
-			L2ToL1MessagePasser: '0x4200000000000000000000000000000000000016',
 			...a
 		});
 	}
-	constructor({provider1, provider2, L2OutputOracle, L2ToL1MessagePasser}) {
+	constructor({provider1, provider2, L2OutputOracle, L2ToL1MessagePasser = '0x4200000000000000000000000000000000000016'}) {
 		super();
 		this.provider1 = provider1;
 		this.provider2 = provider2;

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {EVMFetcher} from './evm-verifier/EVMFetcher.sol';
-import {EVMFetchTarget} from './evm-verifier/EVMFetchTarget.sol';
-import {IEVMVerifier} from './evm-verifier/IEVMVerifier.sol';
+import {EVMFetcher} from './evm-verifier1/EVMFetcher.sol';
+import {EVMFetchTarget} from './evm-verifier1/EVMFetchTarget.sol';
+import {IEVMVerifier} from './evm-verifier1/IEVMVerifier.sol';
 
 contract FetchTest is EVMFetchTarget {
 	using EVMFetcher for EVMFetcher.EVMFetchRequest;
