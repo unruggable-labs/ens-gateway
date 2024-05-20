@@ -4,7 +4,7 @@ import {GatewayRequest} from '../../src/MultiExpander.js';
 
 let foundry = await Foundry.launch();
 
-async function create(code) {
+async function extract_v1(code) {
 	let c = await foundry.deploy({sol: `
 		import {EVMFetcher} from "@src/evm-verifier0/EVMFetcher.sol";
 		import {IEVMVerifier} from "@src/evm-verifier0/IEVMVerifier.sol";
@@ -24,17 +24,17 @@ async function create(code) {
 	return res.toArray(true);
 }
 
-async function compare(v0_code, v1_func, a = ethers.ZeroAddress) {	
-	let [commands, constants] = await create(v0_code);
+async function compare(v1_code, v2_func, a = ethers.ZeroAddress) {	
+	let [commands, constants] = await extract_v1(v1_code);
 	let r1 = GatewayRequest.from_v1(a, commands, constants);
 	let r2 = GatewayRequest.create();
 	r2.push(a);
 	r2.target();
-	v1_func(r2);
+	v2_func(r2);
 	let enc1 = r1.encode();
 	let enc2 = r2.encode();
-	if (enc1 !== enc2) throw Object.assign(new Error('diff'), {v0_code, r1, r2});	
-	console.log(v0_code);
+	if (enc1 !== enc2) throw Object.assign(new Error('diff'), {v1_code, r1, r2});	
+	console.log(v1_code);
 	console.log(enc1);
 	console.log();	
 }
