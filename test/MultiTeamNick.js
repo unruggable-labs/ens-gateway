@@ -1,6 +1,6 @@
 import {Foundry} from '@adraffy/blocksmith';
 import {OPGateway} from '../src/server3/OPGateway.js';
-import {MultiExpander} from '../src/MultiExpander.js';
+import {EVMProver} from '../src/vm.js';
 import {CHAIN_BASE, create_provider_pair} from '../src/providers.js';
 import {ethers} from 'ethers';
 
@@ -42,7 +42,7 @@ console.log(res.toObject());
 let {block} = await gateway.fetch_output(await gateway.latest_index());
 //let block = ethers.toBeHex(13491000n);
 
-let me = new MultiExpander(gateway.provider2, block);
+let me = new EVMProver(gateway.provider2, block);
 
 let outputs = await me.eval(ethers.getBytes(res.request.ops), res.request.inputs);
 

@@ -1,6 +1,8 @@
+// compare v1 solidity builder with js v1/v2 converter
+
 import {ethers} from 'ethers';
 import {Foundry} from '@adraffy/blocksmith';
-import {GatewayRequest} from '../../src/MultiExpander.js';
+import {EVMRequest, EVMRequestV1} from '../../src/vm.js';
 
 let foundry = await Foundry.launch();
 
@@ -8,9 +10,9 @@ async function extract_v1(code) {
 	let c = await foundry.deploy({sol: `
 		import {EVMFetcher} from "@src/evm-verifier0/EVMFetcher.sol";
 		import {IEVMVerifier} from "@src/evm-verifier0/IEVMVerifier.sol";
-		contract X {
+		contract C {
 			using EVMFetcher for EVMFetcher.EVMFetchRequest;
-			function f() pure external returns (bytes32[] memory, bytes[] memory) {
+			function extract() pure external returns (bytes32[] memory, bytes[] memory) {
 				EVMFetcher.EVMFetchRequest memory r = EVMFetcher.newFetchRequest(IEVMVerifier(address(0)), address(0));
 				${code}
 				if (r.commands.length > 0 && r.operationIdx < 32) {
@@ -20,14 +22,14 @@ async function extract_v1(code) {
 			}
 		}
 	`});
-	let res = await c.f();
+	let res = await c.extract();
 	return res.toArray(true);
 }
 
 async function compare(v1_code, v2_func, a = ethers.ZeroAddress) {	
 	let [commands, constants] = await extract_v1(v1_code);
-	let r1 = GatewayRequest.from_v1(a, commands, constants);
-	let r2 = GatewayRequest.create();
+	let r1 = new EVMRequestV1(a, commands, constants).v2();
+	let r2 = new EVMRequest();
 	r2.push(a);
 	r2.target();
 	v2_func(r2);
@@ -54,6 +56,14 @@ await compare(`
 	r.push(2); r.follow();
 	r.collect(1);
 });
+
+await compare(`
+	r.getStatic(3).getStatic(4).ref(0);
+`, r => {
+	r.push(3); r.add(); r.collect(0);
+	r.push(4); r.add(); r.push_output(0); r.follow(); r.collect(0);
+});
+
 
 await compare(`
 	r.getDynamic(3).element(4).element(5);

@@ -1,7 +1,7 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
 import {SmartCache} from '../SmartCache.js';
-import {MultiExpander} from '../MultiExpander.js';
+import {EVMProver} from '../vm.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
@@ -45,7 +45,7 @@ export class Arb1Gateway extends EZCCIP {
 				if (index < latest - this.node_cache.max_cached) throw new Error('stale');
 				if (index > latest + 1) throw new Error('future');
 				let node = await this.node_cache.get(index, x => this.fetch_node(x));
-				let expander = new MultiExpander(this.provider2, node.block, node.slot_cache);
+				let expander = new EVMProver(this.provider2, node.block, node.slot_cache);
 				let values = await expander.eval(ethers.getBytes(ops), inputs);
 				let [account_proofs, state_proofs] = await expander.prove(values);
 				return ABI_CODER.encode(

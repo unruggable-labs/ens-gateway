@@ -1,11 +1,11 @@
-import {MultiExpander, GatewayRequest} from '../../src/MultiExpander.js';
+import {EVMProver, EVMRequest} from '../../src/vm.js';
 import {create_provider, CHAIN_BASE} from '../../src/providers.js';
 import {ethers} from 'ethers';
 import {writeFileSync} from 'node:fs';
 
 let provider = create_provider(CHAIN_BASE);
 
-let r = GatewayRequest.create();
+let r = new EVMRequest();
 r.push('0x7C6EfCb602BC88794390A0d74c75ad2f1249A17f'); 
 r.focus();
 for (let i = 0; i < 10; i++) {
@@ -15,7 +15,7 @@ for (let i = 0; i < 10; i++) {
 }
 console.log(r);
 
-let me = new MultiExpander(provider, ethers.toBeHex(13901882));
+let me = new EVMProver(provider, ethers.toBeHex(13901882));
 
 let outputs = await me.eval(r.ops, r.inputs);
 

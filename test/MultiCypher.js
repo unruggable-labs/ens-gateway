@@ -1,6 +1,6 @@
 import {Foundry} from '@adraffy/blocksmith';
 import {Arb1Gateway} from '../src/server3/Arb1Gateway.js';
-import {MultiExpander} from '../src/MultiExpander.js';
+import {EVMProver} from '../src/vm.js';
 import {CHAIN_ARB1, create_provider_pair} from '../src/providers.js';
 import {ethers} from 'ethers';
 
@@ -45,7 +45,7 @@ console.log(res.toObject());
 let {block} = await gateway.fetch_node(await gateway.latest_index());
 //let block = '0xc41bfaa';
 
-let me = new MultiExpander(gateway.provider2, block);
+let me = new EVMProver(gateway.provider2, block);
 
 let outputs = await me.eval(ethers.getBytes(res.request.ops), res.request.inputs);
 

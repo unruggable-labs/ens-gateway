@@ -1,6 +1,6 @@
 import {ethers} from 'ethers';
 import {Foundry} from '@adraffy/blocksmith';
-import {GatewayRequest, MultiExpander} from '../../src/MultiExpander.js';
+import {EVMRequest, EVMProver} from '../../src/vm.js';
 
 let foundry = await Foundry.launch();
 
@@ -22,7 +22,7 @@ let B = await foundry.deploy({sol: `
 `});
 
 
-let r = GatewayRequest.create();
+let r = new EVMRequest();
 r.push(B.target);
 r.target();
 r.push(0); r.add(); r.collect(0); // a
@@ -33,8 +33,8 @@ r.push(69);
 r.follow();
 let oi = r.collect(1);
 
-let expander = await MultiExpander.latest(foundry.provider);
-let outputs = await MultiExpander.resolved(await expander.eval(r.ops, r.inputs));
+let expander = await EVMProver.latest(foundry.provider);
+let outputs = await EVMProver.resolved(await expander.eval(r.ops, r.inputs));
 console.log(outputs);
 
 console.log(ethers.toUtf8String(outputs[oi].value));

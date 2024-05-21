@@ -1,6 +1,6 @@
 import {ethers} from 'ethers';
 import {Foundry} from '@adraffy/blocksmith';
-import {GatewayRequest, MultiExpander} from '../../src/MultiExpander.js';
+import {EVMRequest, EVMProver} from '../../src/vm.js';
 import assert from 'node:assert/strict';
 
 let foundry = await Foundry.launch();
@@ -25,7 +25,7 @@ let A = await foundry.deploy({sol: `
 	}	
 `});
 
-let r = GatewayRequest.create();
+let r = new EVMRequest();
 r.push(A.target);
 r.focus();
 r.push(2);
@@ -35,8 +35,8 @@ r.collect_first(0);
 
 assert.equal(await A.makeCall(), r.encode());
 
-let expander = await MultiExpander.latest(foundry.provider);
-let outputs = await MultiExpander.resolved(await expander.eval(r.ops, r.inputs));
+let expander = await EVMProver.latest(foundry.provider);
+let outputs = await EVMProver.resolved(await expander.eval(r.ops, r.inputs));
 console.log(outputs);
 
 console.log(await expander.prove(outputs));

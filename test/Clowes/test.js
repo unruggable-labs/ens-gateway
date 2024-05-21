@@ -1,6 +1,6 @@
 import {ethers} from 'ethers';
 import {Foundry} from '@adraffy/blocksmith';
-import {GatewayRequest, MultiExpander} from '../../src/MultiExpander.js';
+import {EVMRequest, EVMProver} from '../../src/vm.js';
 import assert from 'node:assert/strict';
 import {test, after} from 'node:test';
 
@@ -27,10 +27,10 @@ test('Clowes', async () => {
 
 	// confirm js builder decoder/encoder sameness
 	let call0 = await builder.makeCall(storage_pointer);
-	test('GatewayRequest: encode(decode(x)) == x', () => assert.equal(call0, GatewayRequest.decode(call0).encode()));
+	test('EVMRequest: encode(decode(x)) == x', () => assert.equal(call0, EVMRequest.decode(call0).encode()));
 
 	// confirm js builder is 1:1
-	let r = GatewayRequest.create();
+	let r = new EVMRequest();
 	r.push(storage_pointer.target); r.target();
 	/********************************************************************************/
 	// #0: address (from pointer)
@@ -58,11 +58,11 @@ test('Clowes', async () => {
 	// #9: uint256(keccak256(abi.encodePacked("Hal", uint128(12345)))
 	r.push(3); r.add(); r.push_output(5); r.slice(0, 3); r.push_output(3); r.slice(16, 16); r.concat(2); r.keccak(); r.follow(); r.collect(1);
 	/********************************************************************************/
-	test('GatewayRequest: solc == js', () => assert.equal(call0, r.encode()));
+	test('EVMRequest: solc == js', () => assert.equal(call0, r.encode()));
 
 	// execute the request
-	let expander = await MultiExpander.latest(foundry.provider);
-	let outputs = await MultiExpander.resolved(await expander.eval(r.ops, r.inputs));
+	let expander = await EVMProver.latest(foundry.provider);
+	let outputs = await EVMProver.resolved(await expander.eval(r.ops, r.inputs));
 
 	//console.log(outputs);
 

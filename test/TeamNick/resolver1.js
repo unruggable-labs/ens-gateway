@@ -1,6 +1,6 @@
 import {Foundry, Resolver, Node} from '@adraffy/blocksmith';
 import {serve} from '@resolverworks/ezccip';
-import {OPGateway} from '../../src/server/OPGateway.js';
+import {OPGateway} from '../../src/server1/OPGateway.js';
 import {ethers} from 'ethers';
 import {provider_url, create_provider_pair, CHAIN_BASE} from '../../src/providers.js';
 

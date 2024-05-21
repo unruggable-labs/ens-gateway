@@ -1,6 +1,6 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
-import {Expander} from '../evm-storage.js';
+import {Expander} from '../vm1.js';
 
 export class OPGateway extends EZCCIP {
 	static base_mainnet(a) {
@@ -11,7 +11,7 @@ export class OPGateway extends EZCCIP {
 			...a
 		});
 	}
-	constructor({provider1, provider2, L2OutputOracle, L2ToL1MessagePasser, expander}) {
+	constructor({provider1, provider2, L2OutputOracle, L2ToL1MessagePasser}) {
 		super();
 		this.provider1 = provider1;
 		this.provider2 = provider2;

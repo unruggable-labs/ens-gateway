@@ -26,7 +26,10 @@ const OP_STACK_SLICE	= 32;
 const OP_STACK_FIRST	= 33;
 
 export const GATEWAY_ABI = new ethers.Interface([
-	`function fetch(bytes context, tuple(bytes, bytes[]) request) returns (bytes memory)`
+	// v1
+	`function getStorageSlots(address addr, bytes32[] memory commands, bytes[] memory constants) external pure returns(bytes memory witness)`,
+	// v2
+	`function fetch(bytes context, tuple(bytes ops, bytes[] inputs) request) returns (bytes memory)`
 ]);
 
 function uint256_from_bytes(hex) {
@@ -38,15 +41,57 @@ function address_from_bytes(hex) {
 	return '0x' + (hex.length >= 66 ? hex.slice(26, 66) : hex.slice(2).padStart(40, '0').slice(-40)).toLowerCase();
 }
 
-export class GatewayRequest {
-	static from_v1(target, commands, constants) {
-		let req = this.create();
-		req.push(target);
+export class EVMRequestV1 {
+	constructor(target = ethers.ZeroAddress, commands = [], constants = []) {
+		this.target = target;
+		this.commands = commands;
+		this.constants = constants;
+		this.buf = [];
+	}
+	_add(x) {
+		if (this.constants.length >= 32) throw new Error('constants overflow');
+		this.constants.push(ethers.hexlify(x));
+		return this.constants.length-1;
+	}
+	_start(flags, slot) {
+		this.end();
+		this.buf.push(flags, this._add(ethers.toBeHex(slot, 32)));
+		return this;
+	}
+	end() {
+		let {buf} = this;
+		if (!buf.length) return;
+		if (buf.length < 32 && buf[buf.length-1] != 0xFF) buf.push(0xFF);
+		let word = new Uint8Array(32);
+		word.set(buf);
+		this.commands.push(ethers.hexlify(word));
+		buf.length = 0;
+	}
+	getStatic(slot)  { return this._start(0, slot); }
+	getDynamic(slot) { return this._start(1, slot); }
+	ref(i) {
+		this.buf.push((1 << 5) | i);
+		return this;
+	}
+	element(x) { return this.element_bytes(ethers.toBeHex(x, 32)); }
+	element_str(s) { return this.element_bytes(ethers.toUtf8Bytes(s)); }
+	element_bytes(x) {
+		this.buf.push(this._add(x));
+		return this;
+	}
+	encode() {
+		this.end();
+		return GATEWAY_ABI.encodeFunctionData('getStorageSlots', [this.target, this.commands, this.constants]);
+	}
+	v2() {
+		this.end();
+		let req = new EVMRequest();
+		req.push(this.target);
 		req.target();
-		for (let cmd of commands) {
+		for (let cmd of this.commands) {
 			try {
 				let v = ethers.getBytes(cmd);
-				req.push(constants[v[1]]); // first op is initial slot offset
+				req.push(this.constants[v[1]]); // first op is initial slot offset
 				req.add();
 				for (let i = 2; i < v.length; i++) {
 					let op = v[i];
@@ -54,7 +99,7 @@ export class GatewayRequest {
 					let operand = op & 0x1F;
 					switch (op >> 5) {
 						case 0: { // OP_CONSTANT
-							req.push_bytes(constants[operand]);
+							req.push_bytes(this.constants[operand]);
 							req.follow();
 							continue;
 						}
@@ -74,9 +119,9 @@ export class GatewayRequest {
 		}
 		return req;
 	}
-	static create(n = 1024) {
-		return new this(new Uint8Array(n));
-	} 
+}
+
+export class EVMRequest {
 	static decode(data) {
 		let [context, [ops, inputs]] = GATEWAY_ABI.decodeFunctionData('fetch', data);
 		ops = ethers.getBytes(ops);
@@ -85,6 +130,8 @@ export class GatewayRequest {
 		return r;
 	}
 	constructor(buf, inputs = [], pos = 1) {
+		if (!buf) buf = 1024;
+		if (Number.isInteger(buf)) buf = new Uint8Array(buf);
 		this.buf = buf;
 		this.pos = pos;
 		this.inputs = inputs;
@@ -153,7 +200,7 @@ export class GatewayRequest {
 	first()  { this._add_op(OP_STACK_FIRST); }
 }
 
-export class MultiExpander {
+export class EVMProver {
 	static async latest(provider) {
 		let block = await provider.getBlockNumber();
 		return new this(provider, ethers.toBeHex(block));
@@ -170,6 +217,9 @@ export class MultiExpander {
 		this.block = block;
 		this.cache = cache || new SmartCache();
 		this.max_bytes = 1 << 13; // 8KB
+	}
+	async getBlock() {
+		return this.cache.get('BLOCK', () => this.provider.getBlock(this.block));
 	}
 	async getExists(target) {
 		// assuming this is cheaper than eth_getProof with 0 slots
@@ -218,7 +268,7 @@ export class MultiExpander {
 		//return outputs.map(output => [output.bucket.proof, output.slots.map(x => output.bucket.get(x))]);
 	}
 	async eval(ops, inputs) {
-		console.log({ops, inputs});
+		//console.log({ops, inputs});
 		let pos = 1; // skip # outputs
 		let slot = 0n;
 		let target = '0x';

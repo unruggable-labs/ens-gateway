@@ -1,5 +1,5 @@
 import {Foundry} from '@adraffy/blocksmith';
-import {MultiExpander, GatewayRequest} from '../src/MultiExpander.js';
+import {EVMProver, EVMRequest} from '../../src/vm.js';
 import {ethers} from 'ethers';
 import {writeFileSync} from 'node:fs';
 
@@ -15,12 +15,12 @@ let contract = await foundry.deploy({sol: `
 `});
 await foundry.confirm(contract.set(ethers.randomBytes(32 * 10)));
 
-let r = GatewayRequest.create();
+let r = new EVMRequest();
 r.push(contract.target); 
 r.focus();
 r.collect(1);
 
-let me = new MultiExpander(foundry.provider, foundry.provider.getBlock());
+let me = new EVMProver(foundry.provider, foundry.provider.getBlock());
 
 let outputs = await me.eval(r.ops, r.inputs);
 

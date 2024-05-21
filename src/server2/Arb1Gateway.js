@@ -1,7 +1,7 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
 import {SmartCache} from '../SmartCache.js';
-import {Expander} from '../evm-storage.js';
+import {Expander} from '../vm1.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
