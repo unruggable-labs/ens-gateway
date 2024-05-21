@@ -91,7 +91,7 @@ export class EVMRequestV1 {
 		for (let cmd of this.commands) {
 			try {
 				let v = ethers.getBytes(cmd);
-				req.push(this.constants[v[1]]); // first op is initial slot offset
+				req.push(this.constants[v[1]]); //first constant is the base slot
 				req.add();
 				for (let i = 2; i < v.length; i++) {
 					let op = v[i];
@@ -310,7 +310,8 @@ export class EVMProver {
 						break;
 					}
 					case OP_COLLECT: {
-						outputs.push(this.read_output(target, slot, read_byte()));
+						let step = read_byte();
+						outputs.push(this.read_output(target, slot, step));
 						slot = 0n;
 						break;
 					}
