@@ -3,8 +3,11 @@
 import {ethers} from 'ethers';
 import {Foundry} from '@adraffy/blocksmith';
 import {EVMRequest, EVMRequestV1} from '../../src/vm.js';
+import { test, describe, before, after } from "node:test"
+import assert from "node:assert"
 
-let foundry = await Foundry.launch();
+//Hold global foundry instance
+let foundry;
 
 async function extract_v1(code) {
 	let c = await foundry.deploy({sol: `
@@ -35,42 +38,68 @@ async function compare(v1_code, v2_func, a = ethers.ZeroAddress) {
 	v2_func(r2);
 	let enc1 = r1.encode();
 	let enc2 = r2.encode();
+
+	assert.strictEqual(enc1, enc2);
+
 	if (enc1 !== enc2) throw Object.assign(new Error('diff'), {v1_code, r1, r2});	
 	console.log(v1_code);
 	console.log(enc1);
 	console.log();	
+
+	assert.strictEqual(1, 1)
+
 }
 
-await compare(`
-	r.getStatic(8);
-`, r => {
-	r.push(8);
-	r.add();
-	r.collect(0);
+before(async () => {
+	foundry = await Foundry.launch();
 });
 
-await compare(`
-	r.getDynamic(1).element(2);
-`, r => {
-	r.push(1); r.add();
-	r.push(2); r.follow();
-	r.collect(1);
+describe("Testing that the V1 Solidity builder returns commands/constants that match V1/V2 JS VM Outputs", () => {
+
+	test("getStatic", async (t) => {
+
+		await compare(`
+			r.getStatic(8);
+		`, r => {
+			r.push(8);
+			r.add();
+			r.collect(0);
+		});
+	})
+
+	test("getDynamic (array index)", async (t) => {
+		await compare(`
+			r.getDynamic(1).element(2);
+		`, r => {
+			r.push(1); r.add();
+			r.push(2); r.follow();
+			r.collect(1);
+		});
+	})
+
+	test("get static value from mapping using reference", async (t) => {
+
+		await compare(`
+			r.getStatic(3).getStatic(4).ref(0);
+		`, r => {
+			r.push(3); r.add(); r.collect(0);
+			r.push(4); r.add(); r.push_output(0); r.follow(); r.collect(0);
+		});
+	})
+
+	test("get complex", async (t) => {
+		await compare(`
+			r.getDynamic(3).element(4).element(5);
+			r.getStatic(6).element(bytes("raffy"));
+		`, r => {
+			r.push(3); r.add(); r.push(4); r.follow(); r.push(5); r.follow(); r.collect(1);
+			r.push(6); r.add(); r.push_str("raffy"); r.follow(); r.collect(0);
+		});
+	})
 });
 
-await compare(`
-	r.getStatic(3).getStatic(4).ref(0);
-`, r => {
-	r.push(3); r.add(); r.collect(0);
-	r.push(4); r.add(); r.push_output(0); r.follow(); r.collect(0);
+after(() => {
+
+	foundry.shutdown();
 });
 
-
-await compare(`
-	r.getDynamic(3).element(4).element(5);
-	r.getStatic(6).element(bytes("raffy"));
-`, r => {
-	r.push(3); r.add(); r.push(4); r.follow(); r.push(5); r.follow(); r.collect(1);
-	r.push(6); r.add(); r.push_str("raffy"); r.follow(); r.collect(0);
-});
-
-foundry.shutdown();
