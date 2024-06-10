@@ -268,11 +268,11 @@ class EVMProver {
 					continue;
 				}
 				case OP_SET_OUTPUT: {
-					let i = reader.readByte();
-					let value = await unwrap(ctx.pop());
-					this.outputs[this.checkOutputIndex(i)] = value;
-					console.log(`output[${i}] = ${value}`);
-					//this.outputs[this.checkOutputIndex(reader.readByte())] = ctx.pop();
+					// let i = reader.readByte();
+					// let value = await unwrap(ctx.pop());
+					// this.outputs[this.checkOutputIndex(i)] = value;
+					// console.log(`output[${i}] = ${value}`);
+					this.outputs[this.checkOutputIndex(reader.readByte())] = ctx.pop();
 					continue;
 				}
 				case OP_PUSH: {
@@ -486,16 +486,20 @@ async function resolve(name) {
 		.push(ethers.namehash(name)).follow().pushStr('name').follow() // _texts[node][key]
 		.readBytes().setOutput(2); // read text(name) store into output
 		
-	console.log();
-	console.log(name);
-	console.log(req);
+	
 	let ctx = await prover.eval(req);
-	console.log(ctx);
 	let outputs = await prover.getOutputs();
-	console.log({
-		outputs,
-		needs: prover.needs
-	});
+	if (0) {
+		console.log();
+		console.log(name);
+		console.log(req);
+		console.log(ctx);
+		console.log({
+			outputs,
+			needs: prover.needs
+		});
+	}
+
 	console.log(`name(${name}) = "${ethers.toUtf8String(outputs[2])}"`);
 }
 
