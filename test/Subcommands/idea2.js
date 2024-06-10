@@ -459,20 +459,6 @@ await foundry.confirm(leaf_resolver.setText(ethers.namehash('leaf.eth'), 'name',
 
 let prover = await EVMProver.latest(foundry.provider);
 
-async function dump(req) {
-	console.log();
-	console.log(req);
-	let ctx = await prover.eval(req);
-	console.log(ctx);
-	let outputs = await prover.getOutputs();
-	console.log({
-		outputs,
-		needs: prover.needs
-	});
-	return outputs;
-}
-
-
 async function resolve(name) {
 	let req = new EVMRequest(3);
 	req.push(root.target).setOutput(0); // start at root
