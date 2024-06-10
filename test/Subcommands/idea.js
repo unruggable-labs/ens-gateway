@@ -472,8 +472,8 @@ assert.equal(ethers.toUtf8String(outs1[1]), STR_SHORT);
 
 let req3 = new EVMRequest(3);
 req3.push(registry.target).setTarget();
-req3.push(1).setOutput(0);
-for (let label of ['bar', 'foo', 'nick', 'eth']) {
+req3.push(1).setOutput(0); // start at id of root
+for (let label of ['bar', 'foo', 'nick', 'eth']) { // labels in reverse order
 	req3.push(new EVMCommand()
 			.push(0).setSlot() // _nodes mapping
 			.pushOutput(0).pushStr(label).concat(2).keccak() // makeKey()
@@ -484,9 +484,9 @@ for (let label of ['bar', 'foo', 'nick', 'eth']) {
 			.push(new EVMCommand().push(1).addSlot().read().dup().requireNonzero().setOutput(1)).eval());
 }
 req3.eval(false, true); // loop until we get a failure
-// outputs = [subreg, resolver]
 req3.pushOutput(1).setTarget(); // set target to resolver
 req3.push(0).setSlot().readBytes().setOutput(2); // read "name" store into output
+// outputs = [subreg, resolver, name]
 await dump(req3);
 
 foundry.shutdown();
