@@ -3,7 +3,7 @@
 //   in the next commit for some version.
 // Copyright 2020-2021 Optimism
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.15;
 
 /* Library Imports */
 import { MerkleTrie } from "./MerkleTrie.sol";

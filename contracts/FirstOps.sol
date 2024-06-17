@@ -1,4 +1,4 @@
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.15;
 
 import {IEVMVerifier} from "./evm-verifier3/IEVMVerifier.sol";
 import {EVMFetchTarget} from "./evm-verifier3/EVMFetchTarget.sol";

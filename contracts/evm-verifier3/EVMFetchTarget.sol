@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.15;
 
 import {GatewayRequest} from "./GatewayRequest.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";

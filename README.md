@@ -2,8 +2,8 @@
 
 ### Setup
 
-1. `git clone --recurse-submodules $REPO`
-1. `foundryup`
+1. [`foundryup`](https://book.getfoundry.sh/getting-started/installation)
+1. `foundry install`
 1. `npm i`
 1. create [`.env`](./.env.example)
 

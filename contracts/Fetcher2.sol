@@ -1,6 +1,6 @@
 /// @author raffy.eth
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.15;
 
 import {IEVMVerifier} from "./evm-verifier2/IEVMVerifier.sol";
 import {EVMFetcher} from "./evm-verifier2/EVMFetcher.sol";

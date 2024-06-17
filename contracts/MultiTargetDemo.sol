@@ -1,6 +1,6 @@
 /// @author raffy.eth
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.15;
 
 import {GatewayRequest} from "./evm-verifier3/GatewayRequest.sol";
 import {EVMFetcher} from "./evm-verifier3/EVMFetcher.sol";

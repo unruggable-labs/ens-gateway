@@ -4,7 +4,7 @@
 // Copyright 2020-2021 Optimism
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.15;
 
 import { Bytes } from "@eth-optimism/contracts-bedrock/src/libraries/Bytes.sol";
 import { RLPReader } from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
