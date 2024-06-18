@@ -121,6 +121,7 @@ class EVMCommand {
 	requireNonzero() { return this.addByte(OP_REQ_NONZERO); }
 	dup(back = 0) { return this.addByte(OP_PUSH_STACK).addByte(back); }
 	pushOutput(i) { return this.addByte(OP_PUSH_OUTPUT).addByte(i); }
+	pushInput(i) { return this.addByte(OP_PUSH).addByte(i); }
 	push(x) { return this.pushBytes(ethers.toBeHex(x, 32)); }
 	pushStr(s) { return this.addByte(OP_PUSH).addByte(this.addInputStr(s)); }
 	pushBytes(v) { return this.addByte(OP_PUSH).addByte(this.addInputBytes(v)); }
@@ -465,13 +466,10 @@ let storage = await foundry.deploy({sol: `
 			address registry; 
 			address resolver; 
 		}
-		mapping (bytes32 => Node) _nodes;
+		mapping (address => mapping(string => Node)) _nodes;
 	
-		function makeKey(address parent, string memory label) internal pure returns (bytes32) {
-			return keccak256(abi.encodePacked(uint256(uint160(parent)), label));
-		}
 		function setNode(address parent, string memory label, address registry, address resolver) external {
-			_nodes[makeKey(parent, label)] = Node(registry, resolver);
+			_nodes[parent][label] = Node(registry, resolver);
 		}
 	}
 `});
@@ -521,8 +519,7 @@ async function resolve(name) {
 	req.push(0).setSlot() // _nodes mapping
 	req.begin()
 		.pushOutput(0) // registry (as uint256)
-		.dup(1) // label
-		.concat(2).keccak().follow() // makeKey()
+		.follow().follow() // map[subreg][label]
 		.read() // registry
 		//.debug(label)
 		.begin()
