@@ -14,6 +14,40 @@ function clock() {
 	return Math.ceil(performance.now());
 }
 
+export class CachedValue {
+	#exp = 0;
+	#value = undefined;
+	constructor(fn, {ms = 60000, ms_err = 1000} = {}) {
+		this.fn = fn;
+		this.ms_ok = ms;
+		this.ms_err = ms_err;	
+		this.clear();
+	}
+	clear() {
+		this.#value = undefined;
+	}
+	set(value) {		
+		this.#value = Promise.resolve(value);
+		this.#exp = clock() + this.ms_ok;
+	}
+	get value() {
+		return this.#value;
+	}
+	async get() {
+		if (this.#value) {
+			if (this.#exp > clock()) return this.#value;
+			this.#value = undefined;
+		}
+		let p = this.#value = this.fn();
+		return p.catch(() => ERR).then(x => {
+			if (this.#value === p) {
+				this.#exp = clock() + (x === ERR ? this.ms_err : this.ms_ok);
+			}
+			return p;
+		});
+	}
+}
+
 export class SmartCache {
 	constructor({ms = 60000, ms_error, ms_slop = 50, max_cached = 10000, max_pending = 100} = {}) {
 		this.cached = new Map();
@@ -73,25 +107,30 @@ export class SmartCache {
 		cached.set(key, [exp, value]); // add cache entry
 		this._schedule(exp);
 	}
-	get(key, fn, ms) {
-		let {cached} = this;
-		let p = cached.get(key); // fastpath, check cache
-		if (Array.isArray(p)) { 
-			let [exp, q] = p;
+	cachedValue(key) {
+		let c = this.cached.get(key);
+		if (c) {
+			let [exp, q] = c;
 			if (exp > clock()) return q; // still valid
-			cached.delete(key); // expired
+			this.cached.delete(key); // expired
 		}
-		let {pending, max_pending} = this;
-		if (pending.size >= max_pending) throw new Error('busy'); // too many in-flight
-		p = pending.get(key);
-		if (p) return p; // already in-flight
+		return; // ree
+	}
+	peek(key) {
+		return this.cachedValue(key) ?? this.pending.get(key);
+	}
+	get(key, fn, ms) {
+		let p = this.peek(key);
+		if (p) return p;
+		if (this.pending.size >= this.max_pending) throw new Error('busy'); // too many in-flight
 		let q = fn(key); // begin
 		p = q.catch(() => ERR).then(x => { // we got an answer
-			pending.delete(key); // remove from pending
-			this.add(key, q, x && x !== ERR ? ms : this.ms_error); // add original to cache
+			if (this.pending.delete(key)) { // remove from pending
+				this.add(key, q, x && x !== ERR ? (ms ?? this.ms_success) : this.ms_error); // add original to cache if existed
+			}
 			return q; // resolve to original
 		});
-		pending.set(key, p); // remember in-flight
-		return p; // return original
+		this.pending.set(key, p); // remember in-flight
+		return p;
 	}
 }

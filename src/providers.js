@@ -1,8 +1,9 @@
 import {ethers} from 'ethers';
 import {ENV} from './env.js';
 
-export const CHAIN_ARB1 = 42161;
+export const CHAIN_OP = 10;
 export const CHAIN_BASE = 8453;
+export const CHAIN_ARB1 = 42161;
 
 export function provider_url(chain) {
 	if (!Number.isInteger(chain)) throw new Error('expected chain');
@@ -24,6 +25,7 @@ export function provider_url(chain) {
 	}
 	switch (chain) { // public
 		case 1: return 'https://cloudflare-eth.com';
+		case CHAIN_OP: return 'https://mainnet.optimism.io';
 		case CHAIN_BASE: return 'https://mainnet.base.org';
 		case CHAIN_ARB1: return 'https://arb1.arbitrum.io/rpc';
 	}
