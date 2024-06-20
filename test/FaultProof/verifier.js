@@ -1,15 +1,15 @@
 import {Foundry} from '@adraffy/blocksmith';
 import {serve} from '@resolverworks/ezccip';
 import {provider_url, create_provider_pair, CHAIN_OP} from '../../src/providers.js';
-import {SuperchainGateway} from '../../src/server3/SuperchainGateway.js';
+import {OPFaultGateway} from '../../src/server3/OPFaultGateway.js';
 
 let foundry = await Foundry.launch({fork: provider_url(1), infoLog: true, procLog: false});
-let gateway = SuperchainGateway.op_mainnet(create_provider_pair(CHAIN_OP));
+let gateway = OPFaultGateway.op_mainnet(create_provider_pair(CHAIN_OP));
 
 let ccip = await serve(gateway, {protocol: 'raw'});
 
 let verifier = await foundry.deploy({
-	file: 'evm-verifier3/SuperchainVerifier', 
+	file: 'evm-verifier3/OPFaultVerifier', 
 	args: [[ccip.endpoint], gateway.optimismPortal.target, 0]
 });
 

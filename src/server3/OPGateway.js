@@ -1,6 +1,6 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
-import {SmartCache} from '../SmartCache.js';
+import {CachedMap} from '../cached.js';
 import {EVMProver} from '../vm.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
@@ -29,8 +29,8 @@ export class OPGateway extends EZCCIP {
 			'function latestOutputIndex() external view returns (uint256)',
 			'function getL2Output(uint256 outputIndex) external view returns (tuple(bytes32 outputRoot, uint128 t, uint128 block))',
 		], provider1);
-		this.call_cache = new SmartCache({max_cached: 100});
-		this.output_cache = new SmartCache({ms: 60*60000, max_cached: 10});
+		this.call_cache = new CachedMap({max_cached: 100});
+		this.output_cache = new CachedMap({ms: 60*60000, max_cached: 10});
 		this.register(`fetch(bytes context, tuple(bytes ops, bytes[] inputs)) returns (bytes)`, async ([index, {ops, inputs}], context, history) => {
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
@@ -69,7 +69,7 @@ export class OPGateway extends EZCCIP {
 			passerRoot,
 			stateRoot,
 			blockHash,
-			slot_cache: new SmartCache({max_cached: 512})
+			slot_cache: new CachedMap({max_cached: 512})
 		};
 	}
 	shutdown() {

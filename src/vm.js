@@ -1,5 +1,5 @@
 import {ethers} from 'ethers';
-import {SmartCache} from './SmartCache.js';
+import {CachedMap} from './cached.js';
 
 // this should mimic GatewayRequest.sol + EVMProofHelper.sol
 
@@ -215,7 +215,7 @@ export class EVMProver {
 	constructor(provider, block, cache) {
 		this.provider = provider;
 		this.block = block;
-		this.cache = cache || new SmartCache();
+		this.cache = cache || new CachedMap();
 		this.max_bytes = 1 << 13; // 8KB
 	}
 	async getBlock() {

@@ -1,13 +1,13 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
-import {SmartCache, CachedValue} from '../SmartCache.js';
+import {CachedMap, CachedValue} from '../cached.js';
 import {EVMProver} from '../vm.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
 const TYPE_GameType = 'uint32';
 
-export class SuperchainGateway extends EZCCIP {
+export class OPFaultGateway extends EZCCIP {
 	static op_mainnet(a) {
 		// https://docs.optimism.io/chain/addresses
 		return new this({
@@ -15,7 +15,14 @@ export class SuperchainGateway extends EZCCIP {
 			...a,
 		});
 	}
-	constructor({provider1, provider2, OptimismPortal, L2ToL1MessagePasser = '0x4200000000000000000000000000000000000016', game_depth = 10, game_freq = 60*60000}) {
+	constructor({
+		provider1,
+		provider2,
+		OptimismPortal, // address of portal contract
+		L2ToL1MessagePasser = '0x4200000000000000000000000000000000000016',
+		game_freq = 60*60000, // every hour
+		game_depth = 6, // service last 6 hours
+	}) {
 		super();
 		this.provider1 = provider1;
 		this.provider2 = provider2;
@@ -42,8 +49,8 @@ export class SuperchainGateway extends EZCCIP {
 			return count - 1n;
 		}, {ms: 60000});
 		this.L2ToL1MessagePasser = L2ToL1MessagePasser;
-		this.call_cache = new SmartCache({max_cached: 100});
-		this.game_cache = new SmartCache({ms: game_depth * game_freq, ms_error: 60000, max_cached: game_depth});
+		this.call_cache = new CachedMap({max_cached: 100});
+		this.game_cache = new CachedMap({ms: game_depth * game_freq, ms_error: 60000, max_cached: game_depth});
 		this.register(`fetch(bytes blockContext, tuple(bytes ops, bytes[] inputs)) returns (bytes)`, async ([blockContext, {ops, inputs}], context, history) => {
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
@@ -102,7 +109,7 @@ export class SuperchainGateway extends EZCCIP {
 			passerRoot,
 			stateRoot,
 			blockHash,
-			slot_cache: new SmartCache({max_cached: 512}),
+			slot_cache: new CachedMap({max_cached: 512}),
 			prover() {
 				return new EVMProver(this.provider, this.block, this.slot_cache);
 			}

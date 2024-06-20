@@ -1,7 +1,7 @@
 {
 	"type": "module",
 	"dependencies": {
-		"@adraffy/blocksmith": "^0.0.20",
+		"@adraffy/blocksmith": "^0.0.22",
 		"@resolverworks/ezccip": "^0.0.11",
 		"ethers": "^6.13.1"
 	},

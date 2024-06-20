@@ -1,9 +1,9 @@
 //import {ethers} from 'ethers';
 import {create_provider_pair, CHAIN_OP} from '../../src/providers.js';
-import {SuperchainGateway} from '../../src/server3/SuperchainGateway.js';
+import {OPFaultGateway} from '../../src/server3/OPFaultGateway.js';
 import {EVMProver, EVMRequest} from '../../src/vm.js';
 
-let g = SuperchainGateway.op_mainnet(create_provider_pair(CHAIN_OP));
+let g = OPFaultGateway.op_mainnet(create_provider_pair(CHAIN_OP));
 
 console.log(await g.disputeGameFactory.get());
 

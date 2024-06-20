@@ -14,10 +14,10 @@ interface IOptimismPortal {
 	function respectedGameType() external view returns (GameType);
 }
 
-error SuperchainNoRespectedGame();
-error SuperchainInvalidGame(uint256 gameIndex);
+error OPFaultNoRespectedGames();
+error OPFaultInvalidGame(uint256 gameIndex);
 
-contract SuperchainVerifier is IEVMVerifier {
+contract OPFaultVerifier is IEVMVerifier {
 
 	uint256 constant GAME_CHUNK = 10;
 
@@ -48,7 +48,7 @@ contract SuperchainVerifier is IEVMVerifier {
 				}
 			}
 		}
-		revert SuperchainNoRespectedGame();
+		revert OPFaultNoRespectedGames();
 	}
 
 	function getStorageContext() external view returns(string[] memory urls, bytes memory context) {
@@ -67,7 +67,7 @@ contract SuperchainVerifier is IEVMVerifier {
 		GameType rgt = _portal.respectedGameType();
 		(GameType gt, , IDisputeGame gameProxy) = _portal.disputeGameFactory().gameAtIndex(gameIndex);
 		if (gt.raw() != rgt.raw() || gameProxy.status() == GameStatus.CHALLENGER_WINS) {
-			revert SuperchainInvalidGame(gameIndex);
+			revert OPFaultInvalidGame(gameIndex);
 		}
 
 		bytes32 outputRoot = gameProxy.rootClaim().raw();

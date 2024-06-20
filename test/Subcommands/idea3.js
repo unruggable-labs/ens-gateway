@@ -154,7 +154,7 @@ class EVMCommand {
 	}
 }
 
-class EVMRequest extends EVMCommand {
+export class EVMRequest extends EVMCommand {
 	constructor(outputs = 0) {
 		super(undefined);
 		this.outputs = outputs;

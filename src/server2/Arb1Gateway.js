@@ -1,6 +1,6 @@
 import {ethers} from 'ethers';
 import {EZCCIP} from '@resolverworks/ezccip';
-import {SmartCache} from '../SmartCache.js';
+import {CachedMap} from '../cached.js';
 import {Expander} from '../vm1.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
@@ -61,8 +61,8 @@ export class Arb1Gateway extends EZCCIP {
 				uint256 inboxMaxCount
 			)`,
 		], provider1);
-		this.call_cache = new SmartCache({max_cached: 100});
-		this.node_cache = new SmartCache({ms: 60*60000, ms_error: 5000, max_cached: 5});
+		this.call_cache = new CachedMap({max_cached: 100});
+		this.node_cache = new CachedMap({ms: 60*60000, ms_error: 5000, max_cached: 5});
 		this.register(`getStorageSlots(bytes context, address target, bytes32[] commands, bytes[] constants) external view returns (bytes)`, async ([index, target, commands, constants], context, history) => {	
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
@@ -110,7 +110,7 @@ export class Arb1Gateway extends EZCCIP {
 			blockHash,
 			sendRoot,
 			rlpEncodedBlock,
-			slot_cache: new SmartCache({max_cached: 512})
+			slot_cache: new CachedMap({max_cached: 512})
 		};
 	}
 	shutdown() {
