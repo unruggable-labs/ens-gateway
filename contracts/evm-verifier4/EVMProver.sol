@@ -10,9 +10,8 @@ import {SecureMerkleTrie} from "../trie-with-nonexistance/SecureMerkleTrie.sol";
 import "forge-std/console2.sol"; // DEBUG
 
 library EVMProver {
-
-	// https://adraffy.github.io/keccak.js/test/demo.html#algo=keccak-256&s=80&escape=1&encoding=hex
-	bytes32 constant NULL_TRIE_ROOT = keccak256(hex"80");
+	
+	bytes32 constant NOT_A_CONTRACT = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
 	// utils
 	function uint256FromBytes(bytes memory v) internal pure returns (uint256) {
@@ -34,8 +33,10 @@ library EVMProver {
 	// proof verification
 	function getStorageRoot(bytes32 stateRoot, address target, bytes[] memory witness) private pure returns (bytes32) {
 		(bool exists, bytes memory v) = SecureMerkleTrie.get(abi.encodePacked(target), witness, stateRoot);
-		if (!exists) return NULL_TRIE_ROOT; // TODO: is this ever false? is this safe?
+		if (!exists) return NOT_A_CONTRACT;
 		RLPReader.RLPItem[] memory accountState = RLPReader.readList(v);
+		bytes32 codehash = bytes32(RLPReader.readBytes(accountState[3]));
+		if (codehash == keccak256('')) return NOT_A_CONTRACT;
 		return bytes32(RLPReader.readBytes(accountState[2]));
 	}
 	function getStorageValue(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (bytes memory) {
@@ -48,11 +49,11 @@ library EVMProver {
 		bytes buf;
 		uint256 pos;
 		bytes[] inputs;
-		uint256 slot;
 		bytes[] stack;
 		uint256 stackSize;
 		address target;
 		bytes32 storageRoot;
+		uint256 slot;
 		ProofSequence proofs;
 	}
 
@@ -166,7 +167,7 @@ library EVMProver {
 		vm.buf = req.ops;
 		vm.inputs = req.inputs;
 		vm.stack = new bytes[](MAX_STACK);
-		vm.storageRoot = NULL_TRIE_ROOT;
+		vm.storageRoot = keccak256(hex"80"); // null trie root
 		vm.proofs = proofs;
 		outputs = new bytes[](vm.readByte());
 		exitCode = evalCommand(vm, outputs);
@@ -181,13 +182,12 @@ library EVMProver {
 				vm.slot = 0;
 			} else if (op == OP_SET_OUTPUT) {
 				outputs[vm.readByte()] = vm.pop();
-			} else if (op == OP_REQ_TARGET) {
-				if (vm.storageRoot == NULL_TRIE_ROOT) return 1;
+			} else if (op == OP_REQ_CONTRACT) {
+				if (vm.storageRoot == NOT_A_CONTRACT) return 1;
 			} else if (op == OP_REQ_NONZERO) {
 				if (isZeros(vm.peek(vm.readByte()))) return 1;
 			} else if (op == OP_READ_SLOTS) {
 				vm.push(vm.proveSlots(vm.readByte()));
-				vm.dump();
 			} else if (op == OP_READ_BYTES) {
 				vm.push(vm.proveBytes());
 			} else if (op == OP_READ_ARRAY) {
@@ -224,27 +224,28 @@ library EVMProver {
 			} else if (op == OP_EVAL) {
 				uint8 back = vm.readByte();
 				uint8 flags = vm.readByte();
-				Machine memory sub;
-				(sub.buf, sub.inputs) = abi.decode(vm.pop(), (bytes, bytes[]));
-				sub.proofs = vm.proofs;
-				sub.stack = new bytes[](MAX_STACK);
+				Machine memory vm2;
+				(vm2.buf, vm2.inputs) = abi.decode(vm.pop(), (bytes, bytes[]));
+				vm2.proofs = vm.proofs;
+				vm2.stack = new bytes[](MAX_STACK);
 				for (; back > 0 && vm.stackSize > 0; --back) {
-					sub.target = vm.target;
-					sub.storageRoot = vm.storageRoot;
-					sub.slot = vm.slot;
-					sub.stackSize = 0;
-					sub.push(vm.pop());
-					exitCode = evalCommand(sub, outputs);
-					if ((flags & (exitCode != 0 ? 2 : 1)) != 0) {
+					vm2.target = vm.target;
+					vm2.storageRoot = vm.storageRoot;
+					vm2.slot = vm.slot;
+					vm2.pos = 0;
+					vm2.stackSize = 0;
+					vm2.push(vm.pop());
+					exitCode = evalCommand(vm2, outputs);
+					if ((flags & (exitCode != 0 ? STOP_ON_FAILURE : STOP_ON_SUCCESS)) != 0) {
 						break;
 					}
 				}
-				if ((flags & 4) != 0) {
-					vm.target      = sub.target;
-					vm.storageRoot = sub.storageRoot;
-					vm.slot        = sub.slot;
-					vm.stack       = sub.stack;
-					vm.stackSize   = sub.stackSize;
+				if ((flags & ACQUIRE_STATE) != 0) {
+					vm.target      = vm2.target;
+					vm.storageRoot = vm2.storageRoot;
+					vm.slot        = vm2.slot;
+					vm.stack       = vm2.stack;
+					vm.stackSize   = vm2.stackSize;
 				} else {
 					vm.stackSize = vm.stackSize > back ? vm.stackSize - back : 0;
 				}

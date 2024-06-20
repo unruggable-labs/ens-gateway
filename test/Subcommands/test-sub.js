@@ -3,7 +3,7 @@ import {serve} from '@resolverworks/ezccip';
 import {provider_url, create_provider_pair, CHAIN_BASE} from '../../src/providers.js';
 import {OPGateway} from '../../src/server4/OPGateway.js';
 
-let foundry = await Foundry.launch({fork: provider_url(1), infoLog: true, procLog: false});
+let foundry = await Foundry.launch({fork: provider_url(1), infoLog: true, procLog: true});
 let gateway = OPGateway.base_mainnet(create_provider_pair(CHAIN_BASE));
 
 let ccip = await serve(gateway, {protocol: 'raw'});
@@ -23,17 +23,18 @@ let reader = await foundry.deploy({sol: `
 	contract Reader is EVMFetchTarget {
 		using EVMFetcher for EVMRequest;
 
-		function read() external view returns (bytes[] memory, address, string memory) {
+		function read() external view returns (bytes[] memory, uint8) {
 			EVMRequest memory r = EVMFetcher.newRequest(2);
-			r.push(address(${A})).target(); 
-			r.read().target();
-			r.offset(7).push(bytes("raffy")).keccak().follow()
-				.read().setOutput(0)
-				.offset(1).readBytes().setOutput(1);
+			r.push(address(${A}));
+			r.push(0x51050ec063d393217B436747617aD1C2285Aeeee);
+			r.push(0x0000000000000000000000000000000000000001);
+			r.push(EVMFetcher.newCommand().target().requireContract()).eval(STOP_ON_SUCCESS | ACQUIRE_STATE);
+			r.readTarget().setOutput(0);
+			r.offset(69).readSlot().setOutput(1);
 			fetch(IEVMVerifier(${verifier.target}), r, this.readCallback.selector, '');
 		}
-		function readCallback(bytes[] memory m, uint8 exitCode, bytes calldata) external pure returns (bytes[] memory, address, string memory) {
-			return (m, abi.decode(m[0], (address)), string(m[1]));
+		function readCallback(bytes[] memory m, uint8 exitCode, bytes calldata) external pure returns (bytes[] memory, uint8) {
+			return (m, exitCode);
 		}
 	}
 `});

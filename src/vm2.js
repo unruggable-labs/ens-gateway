@@ -1,8 +1,13 @@
+
 import {ethers} from 'ethers';
 import {unwrap, Wrapped} from './wrap.js';
 import {CachedMap} from './cached.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
+
+const BIT_STOP_ON_SUCCESS = 1;
+const BIT_STOP_ON_FAILURE = 2;
+const BIT_ACQUIRE_STATE = 4;
 
 const OP_DEBUG = 255;
 const OP_TARGET = 1;
@@ -10,7 +15,7 @@ const OP_SET_OUTPUT = 2;
 const OP_EVAL = 3;
 
 const OP_REQ_NONZERO = 10;
-const OP_REQ_TARGET = 11;
+const OP_REQ_CONTRACT = 11;
 
 const OP_READ_SLOTS = 20;
 const OP_READ_BYTES = 21;
@@ -63,10 +68,20 @@ export class EVMCommandReader {
 	get remaining() {
 		return this.ops.length - this.pos;
 	}
+	checkSize(n) {
+		if (this.pos + n > this.ops.length) throw new Error('reader overflow');		
+	}
 	readByte() {
-		let b = this.ops[this.pos++];
-		if (this.pos > this.ops.length) throw new Error('reader overflow');
-		return b;
+		this.checkSize(1);
+		return this.ops[this.pos++];
+	}
+	readShort() {		
+		return (this.readByte() << 8) | this.readByte();
+	}
+	readBytes() {
+		let n = this.readShort();
+		this.checkSize(n);
+		return ethers.hexlify(this.ops.subarray(this.pos, this.pos += n));
 	}
 	readInput() {
 		let i = this.readByte();
@@ -74,10 +89,6 @@ export class EVMCommandReader {
 		return this.inputs[i];
 	}
 }
-
-const BIT_STOP_ON_SUCCESS = 1;
-const BIT_STOP_ON_FAILURE = 2;
-const BIT_ACQUIRE_STATE = 4;
 
 export class EVMCommand {
 	constructor(parent) {
@@ -113,8 +124,8 @@ export class EVMCommand {
 	addSlot() { return this.addByte(OP_SLOT_ADD); }
 	offset(x) { return this.push(x).addSlot(); }
 
-	setTarget() { return this.addByte(OP_TARGET); }
-	requireContract() { return this.addByte(OP_REQ_TARGET); }
+	target() { return this.addByte(OP_TARGET); }
+	requireContract() { return this.addByte(OP_REQ_CONTRACT); }
 	requireNonzero(back = 0) { return this.addByte(OP_REQ_NONZERO).addByte(back); }
 
 	pop() { return this.addByte(OP_POP); }
@@ -198,15 +209,20 @@ export class EVMProver {
 		if (size > maxBytes) throw Object.assign(new Error('overflow: size'), {size, max: maxBytes});
 		return Number(size);
 	}
-	async proveStorage(target, slot) {
-		this.needs.push([target, slot]);
-		return this.getStorage(target, slot);
-	}
 	async getStorage(target, slot) {
-		return this.cache.get(`${target}:${slot}`, () => this.provider.getStorage(target, slot, this.block));
+		return this.cache.get(`${target}:${slot}`, async () => {
+			let value = await this.provider.getStorage(target, slot, this.block)
+			if (value !== ethers.ZeroHash) {
+				this.cache.add(target, true);
+			}
+			return value;
+		});
 	}
-	async getCode(target) {
-		return this.cache.get(target, () => this.provider.getCode(target, this.block));
+	async isContract(target) {
+		return this.cache.get(target, async () => {
+			let code = await this.provider.getCode(target, this.block);
+			return code.length > 2;
+		});
 	}
 	async prove() {
 		let targets = new Map();
@@ -309,7 +325,7 @@ export class EVMProver {
 				case OP_POP: {
 					ctx.pop();
 					continue;
-				}				
+				}
 				case OP_READ_SLOTS: {
 					let length = reader.readByte();
 					if (!length) throw new Error(`empty read`);
@@ -319,22 +335,10 @@ export class EVMProver {
 					ctx.stack.push(new Wrapped(async () => ethers.concat(await Promise.all(slots.map(x => this.getStorage(target, x))))));
 					continue;
 				}
-				// case OP_READ: {
-				// 	let {target, slot} = ctx;
-				// 	ctx.stack.push(wrap(async () => this.proveStorage(target, slot)));
-				// 	continue;
-				// }
-				// case OP_READ_SPAN: {
-				// 	let length = reader.readByte();
-				// 	let {target, slot} = ctx;
-				// 	let slots = Array.from({length}, (_, i) => slot + BigInt(i));
-				// 	this.needs.push(...slots.map(x => [target, x]));
-				// 	ctx.stack.push(wrap(async () => ethers.concat(await Promise.all(slots.map(x => this.getStorage(target, x))))));
-				// 	continue;
-				// }
 				case OP_READ_BYTES: {
 					let {target, slot} = ctx;
-					let first = await this.proveStorage(target, slot);
+					this.needs.push([target, slot]);
+					let first = await this.getStorage(target, slot);
 					let size = parseInt(first.slice(64), 16); // last byte
 					if ((size & 1) == 0) { // small
 						ctx.stack.push(ethers.dataSlice(first, 0, size >> 1));
@@ -350,7 +354,7 @@ export class EVMProver {
 					let step = reader.readByte();
 					if (!step) throw new Error('invalid element size');
 					let {target, slot} = ctx;
-					let length = this.checkSize(uint256FromHex(await this.proveStorage(target, slot)));
+					let length = this.checkSize(uint256FromHex(await this.getStorage(target, slot)));
 					if (step < 32) {
 						let per = 32 / step|0;
 						length = (length + per - 1) / per|0;
@@ -362,10 +366,8 @@ export class EVMProver {
 					ctx.stack.push(new Wrapped(async () => ethers.concat(await Promise.all(slots.map(x => this.getStorage(target, x))))));
 					continue;
 				}
-				case OP_REQ_TARGET: {
-					let code = await this.getCode(ctx.target);
-					//this.needs.push([ctx.target, -1n]);
-					if (code.length <= 2) {
+				case OP_REQ_CONTRACT: {
+					if (!await this.isContract(ctx.target)) {
 						ctx.exitCode = 1;
 						return;
 					}
@@ -386,6 +388,7 @@ export class EVMProver {
 					let args = ctx.popSlice(back).toReversed();
 					let sub = new EvalContext();
 					for (let arg of args) {
+						sub.exitCode = 0;
 						sub.target = ctx.target;
 						sub.slot = ctx.slot;
 						sub.stack = [arg];
@@ -413,10 +416,15 @@ export class EVMProver {
 					ctx.stack.push(v.length ? new Wrapped(async () => ethers.concat(await Promise.all(v.map(unwrap)))) : '0x');
 					continue;
 				}
+				case OP_SLICE: {
+					let x = reader.readShort();
+					let n = reader.readShort();
+					ctx.stack.push(ethers.dataSlice(await unwrap(ctx.pop()), x, x + n));
+					continue;
+				}
 				default: throw new Error(`unknown op: ${op}`);
 			}
 		}
-		return ctx;
 	}
 
 }

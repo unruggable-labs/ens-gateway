@@ -3,13 +3,17 @@ pragma solidity ^0.8.23;
 
 uint256 constant MAX_STACK = 64;
 
+uint8 constant STOP_ON_SUCCESS = 1;
+uint8 constant STOP_ON_FAILURE = 2;
+uint8 constant ACQUIRE_STATE = 4;
+
 uint8 constant OP_DEBUG = 255;
 uint8 constant OP_TARGET = 1;
 uint8 constant OP_SET_OUTPUT = 2;
 uint8 constant OP_EVAL = 3;
 
-uint8 constant OP_REQ_TARGET = 10;
-uint8 constant OP_REQ_NONZERO = 11;
+uint8 constant OP_REQ_NONZERO = 10;
+uint8 constant OP_REQ_CONTRACT = 11;
 
 uint8 constant OP_READ_SLOTS = 20;
 uint8 constant OP_READ_BYTES = 21;
