@@ -47,17 +47,17 @@ let reader = await foundry.deploy({sol: `
 	}
 `});
 
-
+console.log(await reader.test1({enableCcipRead: true}));
+console.log(await reader.test1({enableCcipRead: true}));
 //console.log(await reader.test2({enableCcipRead: true}));
 
-
-console.log(await reader.test1({enableCcipRead: true}));
-console.log(await reader.test1({enableCcipRead: true}));
-
+console.log('[CALL CACHE]');
 console.log(gateway.call_cache.cached);
 
 let index = gateway.commit_cache.cached.keys().next().value;
-console.log(index);
+console.log({index});
+
+console.log('[IS CONTRACT]');
 console.log((await gateway.commit_cache.cachedValue(index)).slot_cache.cached);
 
 foundry.shutdown();

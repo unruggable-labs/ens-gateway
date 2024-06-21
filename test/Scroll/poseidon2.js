@@ -33,30 +33,19 @@ const A = '0x09D2233D3d109683ea95Da4546e7E9Fc17a6dfAF';
 
 let provider2 = create_provider(CHAIN_SCROLL);
 let block = await provider2.getBlock(6744000);
-let block_no = ethers.toBeHex(block.number);
+let block_hex = ethers.toBeHex(block.number);
 
 console.log({
-	block: block_no,
+	block: block_hex,
 	stateRoot: block.stateRoot
 });
 
-let proof = await provider2.send('eth_getProof', [A, [ethers.toBeHex(69)], block_no]);
+let slot_hex = ethers.toBeHex(69, 32);
 
-console.log(proof);
+let proof = await provider2.send('eth_getProof', [A, [slot_hex], block_hex]);
 
-
-/*
-@0
-{
-  storageRoot: '0x0162d19f19a165cd4def47f91da1705972ac30b8a03c6841020103c673bd73d1',
-  codeHash: '0xd2ac37218cfd0691ec30f9103a9e55e0dcedb2c32932b3e3d84551a5a31fb842'
-}
-*/
-
-// console.log(proof.accountProof);
+console.log(proof.accountProof);
 console.log(proof.storageProof[0].proof);
-
-console.log('********');
 
 if (0) {
 	function compressProof(accountProof, storageProof) {
@@ -72,14 +61,17 @@ if (0) {
 		'function poseidon() view returns (address)',
 		'function verifyZkTrieProof(address account, bytes32 storageKey, bytes calldata proof) external view returns (bytes32 stateRoot, bytes32 storageValue)'
 	], foundry.provider);
-	console.log(await ccv.verifyZkTrieProof(A, ethers.ZeroHash, compressProof(proof.accountProof, proof.storageProof[0].proof)));
+	console.log(await ccv.verifyZkTrieProof(A, slot_hex, compressProof(proof.accountProof, proof.storageProof[0].proof)));
 }
-  
+
 let [storageRoot, codeHash] =  await contract.proveAccountState(block.stateRoot, A, proof.accountProof);
 
 console.log({storageRoot, codeHash});
 
-let value = await contract.proveStorageValue(storageRoot, 0, proof.storageProof[0].proof);
+console.log({getStorage: await provider2.getStorage(A, slot_hex, block_hex)});
+
+//slot_hex = ethers.toBeHex(9, 32); // HACK
+let value = await contract.proveStorageValue(storageRoot, slot_hex, proof.storageProof[0].proof);
 
 console.log({
 	storageRoot, 

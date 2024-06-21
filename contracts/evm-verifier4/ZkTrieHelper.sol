@@ -10,7 +10,7 @@ pragma solidity ^0.8.0;
 
 error InvalidProof();
 
-import "forge-std/console2.sol";
+//import "forge-std/console2.sol";
 
 library ZkTrieHelper {
 
@@ -21,7 +21,7 @@ library ZkTrieHelper {
 		bytes32 leafHash = walkTree(hasher, key, proof, stateRoot);
 		bytes memory leaf = proof[proof.length-2];
 		if (uint8(leaf[0]) == 4) {
-			checkLeaf(leaf, 230, bytes32(bytes20(account)), key, 0x05080000);
+			if (!isValidLeaf(leaf, 230, bytes32(bytes20(account)), key, 0x05080000)) revert InvalidProof();
 			// REUSING VARIABLE #1
 			assembly { magic := mload(add(leaf, 69)) } // nonce||codesize||0
 			// REUSING VARIABLE #2
@@ -49,7 +49,9 @@ library ZkTrieHelper {
 		bytes memory leaf = proof[proof.length-2];
 		uint256 nodeType = uint8(leaf[0]);
 		if (nodeType == 4) {
-			checkLeaf(leaf, 102, bytes32(slot), key, 0x01010000);
+			// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_proof.go#L62
+			// "notice even we found a leaf whose entry didn't match the expected k, we still include it as the proof of absence"
+			if (!isValidLeaf(leaf, 102, bytes32(slot), key, 0x01010000)) revert InvalidProof();
 			assembly { value := mload(add(leaf, 69)) }
 			bytes32 h = poseidonHash2(hasher, key, poseidonHash1(hasher, value), 4);
 			if (leafHash != h) revert InvalidProof(); // InvalidStorageLeafNodeHash
@@ -62,16 +64,16 @@ library ZkTrieHelper {
 		}
 	}
 
-	function checkLeaf(bytes memory leaf, uint256 len, bytes32 raw, bytes32 key, bytes4 flag) internal pure {
-		if (leaf.length != len) revert InvalidProof();
+	function isValidLeaf(bytes memory leaf, uint256 len, bytes32 raw, bytes32 key, bytes4 flag) internal pure returns (bool){
+		if (leaf.length != len) return false;
 		bytes32 temp;
 		assembly { temp := mload(add(leaf, 33)) }
-		if (temp != key) revert InvalidProof(); // KeyMismatch
+		if (temp != key) return false; // KeyMismatch
 		assembly { temp := mload(add(leaf, 65)) } 
-		if (bytes4(temp) != flag) revert InvalidProof(); // InvalidCompressedFlag
-		if (uint8(leaf[len - 33]) != 32) revert InvalidProof(); // InvalidKeyPreimageLength	
+		if (bytes4(temp) != flag) return false; // InvalidCompressedFlag
+		if (uint8(leaf[len - 33]) != 32) return false; // InvalidKeyPreimageLength	
 		assembly { temp := mload(add(leaf, len)) }
-		if (temp != raw) revert InvalidProof(); // InvalidKeyPreimage
+		return temp == raw; // InvalidKeyPreimage
 	}
 
 	function checkProof(bytes32 magic, bytes[] memory m) internal pure {
@@ -102,7 +104,6 @@ library ZkTrieHelper {
 			}
 			expectedHash = uint256(key) & 1 == 0 ? l : r;
 			key >>= 1;
-			console2.logBytes32(expectedHash);
 		}
 	}
 

@@ -5,8 +5,6 @@ import {EVMRequest} from "./EVMProtocol.sol";
 
 interface IEVMVerifier {
 	
-	error OutputRootMismatch(bytes context, bytes32 expected, bytes32 actual);
-
 	function getStorageContext() external view returns(string[] memory urls, bytes memory context);
 	
 	function getStorageValues(

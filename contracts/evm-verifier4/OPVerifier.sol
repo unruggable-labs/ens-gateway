@@ -14,6 +14,8 @@ interface IL2OutputOracle {
 	function getL2Output(uint256 outputIndex) external view returns (Types.OutputProposal memory);
 }
 
+error OPRootMismatch(uint256 outputIndex, bytes32 expected, bytes32 actual);
+
 contract OPVerifier is IEVMVerifier {
 
 	IL2OutputOracle immutable _oracle;
@@ -41,7 +43,7 @@ contract OPVerifier is IEVMVerifier {
 		Types.OutputProposal memory output = _oracle.getL2Output(outputIndex);
 		bytes32 expectedRoot = Hashing.hashOutputRootProof(outputRootProof);
 		if (output.outputRoot != expectedRoot) {
-			revert OutputRootMismatch(context, expectedRoot, output.outputRoot);
+			revert OPRootMismatch(outputIndex, expectedRoot, output.outputRoot);
 		}
 		return EVMProver.evalRequest(req, ProofSequence(0, outputRootProof.stateRoot, proofs, order, MerkleTrieHelper.proveAccountState, MerkleTrieHelper.proveStorageValue));
 	}
