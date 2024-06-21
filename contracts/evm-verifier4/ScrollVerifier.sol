@@ -21,19 +21,25 @@ contract ScrollVerifier is IEVMVerifier {
 
 	// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_proof.go#L13
 	bytes32 constant MAGIC = keccak256("THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI");
+	uint256 constant INDEX_STEP = 16;
+
 	IScrollChainCommitmentVerifier immutable _oracle;
 	string[] public _urls;
-	uint256 public _delay;
+	uint128 public _delay;
+	uint128 public _step;
 
-	constructor(string[] memory urls, IScrollChainCommitmentVerifier oracle, uint256 delay) {
+	constructor(string[] memory urls, IScrollChainCommitmentVerifier oracle, uint128 delay, uint128 step) {
 		_urls = urls;
 		_oracle = oracle;
 		_delay = delay;
+		_step = step;
 	}
 
 	function getStorageContext() external view returns(string[] memory urls, bytes memory context) {
 		urls = _urls;
-		context = abi.encode(_oracle.rollup().lastFinalizedBatchIndex() - _delay);
+		uint256 index = _oracle.rollup().lastFinalizedBatchIndex() - _delay;
+		index -= (index % _step);
+		context = abi.encode(index);
 	}
 
 	function getStorageValues(bytes memory context, EVMRequest memory req, bytes memory proof) external view returns (bytes[] memory, uint8 exitCode) {

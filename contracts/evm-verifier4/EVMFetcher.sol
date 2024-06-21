@@ -25,12 +25,10 @@ library EVMFetcher {
 
 	function addByte(EVMRequest memory r, uint8 i) internal pure returns (EVMRequest memory) {
 		bytes memory v = r.ops;
-		uint256 n = v.length + 1;
-		if (n > MAX_OPS) revert RequestOverflow();
-		assembly {
-			mstore(v, n)
-			mstore8(add(add(v, 31), n), i)
-		}
+		uint256 n = v.length;
+		if (n >= MAX_OPS) revert RequestOverflow();
+		assembly { mstore(v, add(n, 1)) }
+		v[n] = bytes1(i);
 		return r;
 	}
 	function addShort(EVMRequest memory r, uint16 i) internal pure returns (EVMRequest memory) {

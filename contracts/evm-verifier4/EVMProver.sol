@@ -12,8 +12,18 @@ import "forge-std/console2.sol"; // DEBUG
 
 library EVMProver {
 	
-	// utils
+	function dump(Machine memory vm) internal pure {
+		console2.log("[pos=%s/%s]", vm.pos, vm.buf.length);
+		console2.log("[target=%s slot=%s]", vm.target, vm.slot);
+		console2.log("[proof=%s/%s]", vm.proofs.index, vm.proofs.order.length);
+		console2.logBytes(vm.buf);
+		for (uint256 i; i < vm.stackSize; i++) {
+			console2.log("[stack=%s size=%s]", i, vm.stack[i].length);
+			console2.logBytes(vm.stack[i]);
+		}
+	}
 	
+	// TODO this checks beyond bound
 	function isZeros(bytes memory v) internal pure returns (bool ret) {
 		assembly {
 			let p := add(v, 32)
@@ -85,17 +95,7 @@ library EVMProver {
 
 	function readProof(Machine memory vm) internal pure returns (bytes[] memory) {
 		ProofSequence memory p = vm.proofs;
-		return p.data[uint8(p.order[p.index++])];
-	}
-	function dump(Machine memory vm) internal pure {
-		console2.log("[pos=%s/%s]", vm.pos, vm.buf.length);
-		console2.log("[target=%s slot=%s]", vm.target, vm.slot);
-		console2.log("[proof=%s/%s]", vm.proofs.index, vm.proofs.order.length);
-		console2.logBytes(vm.buf);
-		for (uint256 i; i < vm.stackSize; i++) {
-			console2.log("[stack=%s size=%s]", i, vm.stack[i].length);
-			console2.logBytes(vm.stack[i]);
-		}
+		return p.proofs[uint8(p.order[p.index++])];
 	}
 	function getStorage(Machine memory vm, uint256 slot) internal view returns (uint256) {
 		bytes[] memory proof = vm.readProof();
@@ -148,11 +148,15 @@ library EVMProver {
 
 	function evalRequest(EVMRequest memory req, ProofSequence memory proofs) internal view returns (bytes[] memory outputs, uint8 exitCode) {
 		Machine memory vm;
+		vm.pos = 0;
 		vm.buf = req.ops;
 		vm.inputs = req.inputs;
 		vm.stack = new bytes[](MAX_STACK);
+		vm.stackSize = 0;
 		vm.proofs = proofs;
+		vm.target = address(0);
 		vm.storageRoot = NOT_A_CONTRACT;
+		vm.slot = 0;
 		outputs = new bytes[](vm.readByte());
 		exitCode = evalCommand(vm, outputs);
 	}

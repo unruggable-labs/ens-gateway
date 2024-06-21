@@ -43,7 +43,7 @@ struct EVMRequest {
 struct ProofSequence {
 	uint256 index;
 	bytes32 stateRoot;
-	bytes[][] data;
+	bytes[][] proofs;
 	bytes order;
 	function(bytes32, address, bytes[] memory) internal view returns (bytes32) proveAccountState;
 	function(bytes32, uint256, bytes[] memory) internal view returns (uint256) proveStorageValue;

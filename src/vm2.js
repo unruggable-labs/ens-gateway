@@ -5,6 +5,8 @@ import {CachedMap} from './cached.js';
 
 const ABI_CODER = ethers.AbiCoder.defaultAbiCoder();
 
+const NULL_CODE_HASH = ethers.id('');
+
 const BIT_STOP_ON_SUCCESS = 1;
 const BIT_STOP_ON_FAILURE = 2;
 const BIT_ACQUIRE_STATE = 4;
@@ -203,6 +205,7 @@ export class EVMProver {
 		this.provider = provider;
 		this.block = block;
 		this.cache = cache ?? new CachedMap();
+		this.log = console.log;
 	}
 	checkSize(size) {
 		const maxBytes = 1000;
@@ -210,17 +213,26 @@ export class EVMProver {
 		return Number(size);
 	}
 	async getStorage(target, slot) {
+		try {
+			if (await this.cache.cachedValue(target) === true) {
+				this.log?.('getStorage(impossible)', target, slot);
+				return ethers.ZeroHash;
+			}
+		} catch (err) {
+		}
 		return this.cache.get(`${target}:${slot}`, async () => {
+			this.log?.('getStorage', target, slot);
 			let value = await this.provider.getStorage(target, slot, this.block)
 			if (value !== ethers.ZeroHash) {
-				this.cache.add(target, true);
+				this.cache.set(target, true);
 			}
 			return value;
 		});
 	}
 	async isContract(target) {
-		return this.cache.get(target, async () => {
-			let code = await this.provider.getCode(target, this.block);
+		return this.cache.get(target, async a => {
+			this.log?.('getCode', a);
+			let code = await this.provider.getCode(a, this.block);
 			return code.length > 2;
 		});
 	}
@@ -249,9 +261,11 @@ export class EVMProver {
 		});
 		await Promise.all(Array.from(targets, async ([target, bucket]) => {
 			let m = [...bucket];
-			let proof = await this.provider.send('eth_getProof', [target, m.map(([slot]) => ethers.toBeHex(slot, 32)), this.block]);
-			bucket.proof = proof.accountProof; //ABI_CODER.encode(['bytes[]'], [proof.accountProof]);
-			m.forEach(([_, ref], i) => ref.proof = proof.storageProof[i].proof); // ABI_CODER.encode(['bytes[]'], [
+			let proof = await this.provider.send('eth_getProof', [target, m.map(([slot]) => ethers.toBeHex(slot)), this.block]);
+			bucket.proof = proof.accountProof;
+			let is_contract = !(proof.codeHash === NULL_CODE_HASH || proof.keccakCodeHash === NULL_CODE_HASH);
+			this.cache.set(target, is_contract);
+			m.forEach(([_, ref], i) => ref.proof = is_contract ? proof.storageProof[i].proof : []);
 		}));
 		return {
 			proofs: refs.map(x => x.proof),
@@ -279,7 +293,7 @@ export class EVMProver {
 						slot: ctx.slot,
 						return: ctx.returnValue,
 						stack: await Promise.all(ctx.stack.map(unwrap)),
-						outputs: await Promise.all(this.outputs)
+						outputs: await Promise.all(ctx.outputs)
 					});
 					break;
 				}
@@ -385,14 +399,14 @@ export class EVMProver {
 					let flags = reader.readByte();
 					let cmd = EVMCommandReader.fromEncoded(await unwrap(ctx.pop()));
 					let args = ctx.popSlice(back).toReversed();
-					let sub = new EvalContext();
+					let sub = new EvalContext(ctx.outputs, ctx.needs);
 					for (let arg of args) {
 						sub.exitCode = 0;
 						sub.target = ctx.target;
 						sub.slot = ctx.slot;
 						sub.stack = [arg];
 						cmd.pos = 0;
-						await this.evalCommand(cmd, sub, outputs);
+						await this.evalCommand(cmd, sub);
 						if (flags & (sub.exitCode ? BIT_STOP_ON_FAILURE : BIT_STOP_ON_SUCCESS)) break;
 					}
 					if (flags & BIT_ACQUIRE_STATE) {

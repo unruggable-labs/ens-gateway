@@ -96,7 +96,7 @@ export class CachedMap {
 		clearTimeout(this.timer);
 		this.timer_t = Infinity;
 	}
-	add(key, value, ms) {
+	set(key, value, ms) {
 		if (!ms) ms = this.ms_success;
 		let {cached, max_cached} = this;
 		if (cached.size >= max_cached) { // we need room
@@ -127,7 +127,7 @@ export class CachedMap {
 		let q = fn(key); // begin
 		p = q.catch(() => ERR).then(x => { // we got an answer
 			if (this.pending.delete(key)) { // remove from pending
-				this.add(key, q, x && x !== ERR ? (ms ?? this.ms_success) : this.ms_error); // add original to cache if existed
+				this.set(key, q, x && x !== ERR ? (ms ?? this.ms_success) : this.ms_error); // add original to cache if existed
 			}
 			return q; // resolve to original
 		});

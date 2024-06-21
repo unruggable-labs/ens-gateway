@@ -22,47 +22,62 @@ export class ScrollGateway extends EZCCIP {
 		ScrollChainCommitmentVerifier,
 		ScrollAPI,
 		rollup_depth = 10,
-		rollup_freq = 60000 // every minute
+		rollup_freq = 60000, // every minute
+		rollup_step = 16,
 	}) {
 		super();
 		this.provider1 = provider1;
 		this.provider2 = provider2;
+		this.rollup_step = BigInt(rollup_step);
 		this.api = new URL(ScrollAPI);
-		this.ccv = new ethers.Contract(ScrollChainCommitmentVerifier, [
+		this.ScrollChainCommitmentVerifier = new ethers.Contract(ScrollChainCommitmentVerifier, [
 			'function rollup() view returns (address)',
 			'function poseidon() view returns (address)',
 			'function verifyZkTrieProof(address account, bytes32 storageKey, bytes calldata proof) view returns (bytes32 stateRoot, bytes32 storageValue)'
 		], provider1);
+		this.poseidon = new CachedValue(async () => {
+			return new ethers.Contract(await this.ScrollChainCommitmentVerifier.poseidon(), [
+				'function poseidon(uint256[2], uint256) external view returns (bytes32)'
+			], this.provider1);
+		}, {ms: 60000 * 60});
 		// this.scrollChain = new ethers.Contract(ScrollChain, [
 		// 	'function lastFinalizedBatchIndex() returns (uint256)',
 		// ], provider1);
 		//this.latest_index = new CachedValue(() => this.scrollChain.lastFinalizedBatchIndex(), {ms: 60000});
 		this.latest_index = new CachedValue(async () => {
+			// since we need /batch api to convert index to block
+			// rpc lastFinalizedBatchIndex() is likely always ahead of the indexer
+			// so we use this command instead
 			let res = await fetch(new URL('./last_batch_indexes', this.api))
 			if (!res.ok) throw new Error(`${url}: ${res.status}`);
 			let json = await res.json();
 			return BigInt(json.finalized_index);
-		});
+		}, {ms: rollup_freq});
 		this.call_cache = new CachedMap({max_cached: 1000});
-		this.commit_cache = new CachedMap({ms: rollup_depth * rollup_freq, max_cached: rollup_depth});
-		this.register(`proveRequest(bytes context, tuple(bytes ops, bytes[] inputs)) returns (bytes)`, async ([blockContext, [ops, inputs]], context, history) => {
+		this.commit_cache = new CachedMap({ms: rollup_depth * rollup_freq * rollup_step, max_cached: rollup_depth});
+		this.register(`proveRequest(bytes when, tuple(bytes ops, bytes[] inputs)) returns (bytes)`, async ([when, [ops, inputs]], context, history) => {
+			let [index] = ABI_CODER.decode(['uint256'], when);
+			if (index % this.rollup_step) throw new Error(`not aligned: ${index} expect mod ${this.rollup_step}`);
 			let hash = ethers.keccak256(context.calldata);
 			history.show = [hash];
 			return this.call_cache.get(hash, async () => {
-				let [index] = ABI_CODER.decode(['uint256'], blockContext);
 				let commit = await this.commit_cache.get(index, async x => {
 					let latest = await this.latest_index.get();
-					let lag = Number(latest - index);
-					if (lag < -1) throw new Error('too new');
-					if (lag > this.commit_cache.max_cached) throw new Error('too old');
+					let lag = Number((latest - index) / this.rollup_step);
+					if (lag < -1) throw new Error(`too new: ${index} is ${lag} from ${latest}`);
+					if (lag > this.commit_cache.max_cached) throw new Error(`too old: ${index} is +${lag} from ${latest}`)
 					return this.fetch_commit(x);
 				});
 				let prover = new EVMProver(this.provider2, commit.block, commit.slot_cache);
-				await prover.evalDecoded(ops, inputs);
-				let {proofs, order} = await prover.prove();
-				return ABI_CODER.encode(['bytes[]', 'bytes'], [proofs, order]);
+				let result = await prover.evalDecoded(ops, inputs);
+				let {proofs, order} = await prover.prove(result.needs);
+				return ethers.getBytes(ABI_CODER.encode(['bytes[][]', 'bytes'], [proofs, Uint8Array.from(order)]));
 			});
 		});
+	}
+	async poseidon_hash(a, b, domain) {
+		let p = await this.poseidon.get();
+		return p.poseidon([a, b], domain);
 	}
 	async latest_prover() {
 		let index = await this.latest_index.get();

@@ -10,6 +10,8 @@ pragma solidity ^0.8.0;
 
 error InvalidProof();
 
+import "forge-std/console2.sol";
+
 library ZkTrieHelper {
 
 	function proveAccountState(address hasher, bytes32 magic, bytes32 stateRoot, address account, bytes[] memory proof) internal view returns (bytes32 storageRoot, bytes32 codeHash) {
@@ -74,7 +76,7 @@ library ZkTrieHelper {
 
 	function checkProof(bytes32 magic, bytes[] memory m) internal pure {
 		// root leaf data magic
-		if (m.length < 2 || m.length >= 249) revert InvalidProof(); 
+		if (m.length < 4 || m.length >= 249) revert InvalidProof(); 
 		// this seems wrong lol
 		if (keccak256(m[m.length-1]) != magic) revert InvalidProof();
 	}
@@ -100,6 +102,7 @@ library ZkTrieHelper {
 			}
 			expectedHash = uint256(key) & 1 == 0 ? l : r;
 			key >>= 1;
+			console2.logBytes32(expectedHash);
 		}
 	}
 
