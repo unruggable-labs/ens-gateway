@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import "./EVMProtocol.sol";
+import "./ProofUtils.sol";
 
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {Bytes} from "@eth-optimism/contracts-bedrock/src/libraries/Bytes.sol";
@@ -11,12 +12,8 @@ import "forge-std/console2.sol"; // DEBUG
 
 library EVMProver {
 	
-	bytes32 constant NOT_A_CONTRACT = 0x0000000000000000000000000000000000000000000000000000000000000001;
-
 	// utils
-	function uint256FromBytes(bytes memory v) internal pure returns (uint256) {
-		return uint256(v.length < 32 ? bytes32(v) >> ((32 - v.length) << 3) : bytes32(v));
-	}
+	
 	function isZeros(bytes memory v) internal pure returns (bool ret) {
 		assembly {
 			let p := add(v, 32)
@@ -29,21 +26,6 @@ library EVMProver {
 			}
 		}
 	}
-
-	// proof verification
-	function getStorageRoot(bytes32 stateRoot, address target, bytes[] memory witness) private pure returns (bytes32) {
-		(bool exists, bytes memory v) = SecureMerkleTrie.get(abi.encodePacked(target), witness, stateRoot);
-		if (!exists) return NOT_A_CONTRACT;
-		RLPReader.RLPItem[] memory accountState = RLPReader.readList(v);
-		bytes32 codehash = bytes32(RLPReader.readBytes(accountState[3]));
-		if (codehash == keccak256('')) return NOT_A_CONTRACT;
-		return bytes32(RLPReader.readBytes(accountState[2]));
-	}
-	function getStorageValue(bytes32 storageRoot, uint256 slot, bytes[] memory witness) private pure returns (bytes memory) {
-		(bool exists, bytes memory v) = SecureMerkleTrie.get(abi.encodePacked(slot), witness, storageRoot);
-		return exists ? RLPReader.readBytes(v) : bytes('');
-	}
-	
 
 	struct Machine {
 		bytes buf;
@@ -103,22 +85,24 @@ library EVMProver {
 
 	function readProof(Machine memory vm) internal pure returns (bytes[] memory) {
 		ProofSequence memory p = vm.proofs;
-		return p.data[uint8(p.map[p.index++])];
+		return p.data[uint8(p.order[p.index++])];
 	}
 	function dump(Machine memory vm) internal pure {
 		console2.log("[pos=%s/%s]", vm.pos, vm.buf.length);
 		console2.log("[target=%s slot=%s]", vm.target, vm.slot);
-		console2.log("[proof=%s/%s]", vm.proofs.index, vm.proofs.map.length);
+		console2.log("[proof=%s/%s]", vm.proofs.index, vm.proofs.order.length);
 		console2.logBytes(vm.buf);
 		for (uint256 i; i < vm.stackSize; i++) {
 			console2.log("[stack=%s size=%s]", i, vm.stack[i].length);
 			console2.logBytes(vm.stack[i]);
 		}
 	}
-	function getStorage(Machine memory vm, uint256 slot) internal pure returns (uint256) {
-		return uint256FromBytes(getStorageValue(vm.storageRoot, slot, vm.readProof()));
+	function getStorage(Machine memory vm, uint256 slot) internal view returns (uint256) {
+		bytes[] memory proof = vm.readProof();
+		if (vm.storageRoot == NOT_A_CONTRACT) return 0;
+		return vm.proofs.proveStorageValue(vm.storageRoot, slot, proof);
 	}
-	function proveSlots(Machine memory vm, uint256 count) internal pure returns (bytes memory v) {
+	function proveSlots(Machine memory vm, uint256 count) internal view returns (bytes memory v) {
 		v = new bytes(count << 5);
 		for (uint256 i; i < count; ) {
 			uint256 value = vm.getStorage(vm.slot + i);
@@ -126,7 +110,7 @@ library EVMProver {
 			assembly { mstore(add(v, shl(5, i)), value) }
 		}
 	}
-	function proveBytes(Machine memory vm) internal pure returns (bytes memory v) {
+	function proveBytes(Machine memory vm) internal view returns (bytes memory v) {
 		uint256 first = vm.getStorage(vm.slot);
 		if ((first & 1) == 0) { // small
 			v = new bytes((first & 0xFF) >> 1);
@@ -143,7 +127,7 @@ library EVMProver {
 			}
 		}
 	}
-	function proveArray(Machine memory vm, uint256 step) internal pure returns (bytes memory v) {
+	function proveArray(Machine memory vm, uint256 step) internal view returns (bytes memory v) {
 		uint256 first = vm.getStorage(vm.slot);
 		uint256 count;
 		if (step < 32) {
@@ -162,23 +146,23 @@ library EVMProver {
 		}
 	}
 
-	function evalRequest(EVMRequest memory req, ProofSequence memory proofs) internal pure returns (bytes[] memory outputs, uint8 exitCode) {
+	function evalRequest(EVMRequest memory req, ProofSequence memory proofs) internal view returns (bytes[] memory outputs, uint8 exitCode) {
 		Machine memory vm;
 		vm.buf = req.ops;
 		vm.inputs = req.inputs;
 		vm.stack = new bytes[](MAX_STACK);
-		vm.storageRoot = keccak256(hex"80"); // null trie root
 		vm.proofs = proofs;
+		vm.storageRoot = NOT_A_CONTRACT;
 		outputs = new bytes[](vm.readByte());
 		exitCode = evalCommand(vm, outputs);
 	}
 
-	function evalCommand(Machine memory vm, bytes[] memory outputs) internal pure returns (uint8 exitCode) {
+	function evalCommand(Machine memory vm, bytes[] memory outputs) internal view returns (uint8 exitCode) {
 		while (vm.pos < vm.buf.length) {
 			uint256 op = vm.readByte();
 			if (op == OP_TARGET) {
-				vm.target = address(uint160(uint256FromBytes(vm.pop())));
-				vm.storageRoot = getStorageRoot(vm.proofs.stateRoot, vm.target, vm.readProof());
+				vm.target = address(uint160(ProofUtils.uint256FromBytes(vm.pop())));
+				vm.storageRoot = vm.proofs.proveAccountState(vm.proofs.stateRoot, vm.target, vm.readProof()); // TODO balance?
 				vm.slot = 0;
 			} else if (op == OP_SET_OUTPUT) {
 				outputs[vm.readByte()] = vm.pop();
@@ -207,7 +191,7 @@ library EVMProver {
 			} else if (op == OP_SLOT_ZERO) {
 				vm.slot = 0;
 			} else if (op == OP_SLOT_ADD) {
-				vm.slot += uint256FromBytes(vm.pop());
+				vm.slot += ProofUtils.uint256FromBytes(vm.pop());
 			} else if (op == OP_SLOT_FOLLOW) {
 				vm.slot = uint256(keccak256(abi.encodePacked(vm.pop(), vm.slot)));
 			} else if (op == OP_STACK_SLICE) {

@@ -4,6 +4,7 @@ pragma solidity ^0.8.23;
 import {EVMRequest} from "./EVMProtocol.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";
 import {EVMProver, ProofSequence} from "./EVMProver.sol";
+import {MerkleTrieHelper} from "./MerkleTrieHelper.sol";
 
 import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPReader.sol";
 import {Hashing, Types} from "@eth-optimism/contracts-bedrock/src/libraries/Hashing.sol";
@@ -35,14 +36,14 @@ contract OPVerifier is IEVMVerifier {
 		(
 			Types.OutputRootProof memory outputRootProof,
 			bytes[][] memory proofs,
-			bytes memory proofMap
+			bytes memory order
 		) = abi.decode(proof, (Types.OutputRootProof, bytes[][], bytes));
 		Types.OutputProposal memory output = _oracle.getL2Output(outputIndex);
 		bytes32 expectedRoot = Hashing.hashOutputRootProof(outputRootProof);
 		if (output.outputRoot != expectedRoot) {
 			revert OutputRootMismatch(context, expectedRoot, output.outputRoot);
 		}
-		return EVMProver.evalRequest(req, ProofSequence(0, outputRootProof.stateRoot, proofMap, proofs));
+		return EVMProver.evalRequest(req, ProofSequence(0, outputRootProof.stateRoot, proofs, order, MerkleTrieHelper.proveAccountState, MerkleTrieHelper.proveStorageValue));
 	}
 
 }

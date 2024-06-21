@@ -166,11 +166,13 @@ export class EVMRequest extends EVMCommand {
 }
 
 class EvalContext {
-	constructor() {
+	constructor(outputs, needs) {
 		this.target = ethers.ZeroAddress;
 		this.slot = 0n;
 		this.stack = [];
 		this.exitCode = 0;
+		this.outputs = outputs;
+		this.needs = needs;
 	}
 	pop() {
 		if (!this.stack.length) throw new Error('stack: underflow');
@@ -183,6 +185,13 @@ class EvalContext {
 		if (back >= this.stack.length) throw new Error('stack: overflow');
 		return this.stack[this.stack.length-1-back]; // from end
 	}
+	checkOutputIndex(i) {
+		if (i >= this.outputs.length) throw new Error(`invalid output: ${i}`);
+		return i;
+	}
+	async values() {
+		return Promise.all(this.outputs.map(unwrap));
+	}
 }
 
 export class EVMProver {
@@ -194,15 +203,6 @@ export class EVMProver {
 		this.provider = provider;
 		this.block = block;
 		this.cache = cache ?? new CachedMap();
-		this.outputs = [];
-		this.needs = [];
-	}
-	async getOutputs() {
-		return Promise.all(this.outputs.map(unwrap));
-	}
-	checkOutputIndex(i) {
-		if (i >= this.outputs.length) throw new Error(`invalid output: ${i}`);
-		return i;
 	}
 	checkSize(size) {
 		const maxBytes = 1000;
@@ -224,10 +224,10 @@ export class EVMProver {
 			return code.length > 2;
 		});
 	}
-	async prove() {
+	async prove(needs) {
 		let targets = new Map();
 		let refs = [];
-		let order = this.needs.map(([target, slot]) => {
+		let order = needs.map(([target, slot]) => {
 			let bucket = targets.get(target);
 			if (slot >= 0) {
 				let ref = bucket.get(slot);
@@ -248,9 +248,10 @@ export class EVMProver {
 			}
 		});
 		await Promise.all(Array.from(targets, async ([target, bucket]) => {
-			let proof = await this.provider.send('eth_getProof', [target, Array.from(bucket.keys(), x => ethers.toBeHex(x, 32)), this.block]);
-			bucket.proof = proof.accountProof;
-			Array.from(bucket.values(), (ref, i) => ref.proof = proof.storageProof[i].proof);
+			let m = [...bucket];
+			let proof = await this.provider.send('eth_getProof', [target, m.map(([slot]) => ethers.toBeHex(slot, 32)), this.block]);
+			bucket.proof = proof.accountProof; //ABI_CODER.encode(['bytes[]'], [proof.accountProof]);
+			m.forEach(([_, ref], i) => ref.proof = proof.storageProof[i].proof); // ABI_CODER.encode(['bytes[]'], [
 		}));
 		return {
 			proofs: refs.map(x => x.proof),
@@ -264,9 +265,7 @@ export class EVMProver {
 		return this.evalReader(EVMCommandReader.fromCommand(req));
 	}
 	async evalReader(reader) {
-		this.needs = [];
-		this.outputs = Array.from({length: reader.readByte()}, () => '0x');
-		let ctx = new EvalContext();
+		let ctx = new EvalContext(Array.from({length: reader.readByte()}, () => '0x'), []);
 		await this.evalCommand(reader, ctx);
 		return ctx;
 	}
@@ -287,7 +286,7 @@ export class EVMProver {
 				case OP_TARGET: {
 					ctx.target = addressFromHex(await unwrap(ctx.pop()));
 					ctx.slot = 0n;
-					this.needs.push([ctx.target, -1n]);
+					ctx.needs.push([ctx.target, -1n]);
 					continue;
 				}
 				case OP_SLOT_ADD: {
@@ -299,7 +298,7 @@ export class EVMProver {
 					continue;
 				}
 				case OP_SET_OUTPUT: {
-					this.outputs[this.checkOutputIndex(reader.readByte())] = ctx.pop();
+					ctx.outputs[ctx.checkOutputIndex(reader.readByte())] = ctx.pop();
 					continue;
 				}
 				case OP_PUSH_INPUT: {
@@ -307,7 +306,7 @@ export class EVMProver {
 					continue;
 				}
 				case OP_PUSH_OUTPUT: {
-					ctx.stack.push(this.outputs[this.checkOutputIndex(reader.readByte())]);
+					ctx.stack.push(ctx.outputs[ctx.checkOutputIndex(reader.readByte())]);
 					continue;
 				}
 				case OP_PUSH_SLOT: {
@@ -331,13 +330,13 @@ export class EVMProver {
 					if (!length) throw new Error(`empty read`);
 					let {target, slot} = ctx;
 					let slots = bigintRange(slot, length);
-					slots.forEach(slot => this.needs.push([target, slot]));
+					slots.forEach(slot => ctx.needs.push([target, slot]));
 					ctx.stack.push(new Wrapped(async () => ethers.concat(await Promise.all(slots.map(x => this.getStorage(target, x))))));
 					continue;
 				}
 				case OP_READ_BYTES: {
 					let {target, slot} = ctx;
-					this.needs.push([target, slot]);
+					ctx.needs.push([target, slot]);
 					let first = await this.getStorage(target, slot);
 					let size = parseInt(first.slice(64), 16); // last byte
 					if ((size & 1) == 0) { // small
@@ -345,7 +344,7 @@ export class EVMProver {
 					} else {
 						size = this.checkSize(BigInt(first) >> 1n);
 						let slots = solidityArraySlots(slot, (size + 31) >> 5);
-						slots.forEach(slot => this.needs.push([target, slot]));
+						slots.forEach(slot => ctx.needs.push([target, slot]));
 						ctx.stack.push(new Wrapped(async () => ethers.dataSlice(ethers.concat(await Promise.all(slots.map(x => this.getStorage(target, x)))), 0, size)));
 					}
 					continue;
@@ -362,7 +361,7 @@ export class EVMProver {
 						length = length * ((step + 31) >> 5);
 					}
 					let slots = [slot, ...solidityArraySlots(slot, length)];
-					slots.forEach(slot => this.needs.push([target, slot]));
+					slots.forEach(slot => ctx.needs.push([target, slot]));
 					ctx.stack.push(new Wrapped(async () => ethers.concat(await Promise.all(slots.map(x => this.getStorage(target, x))))));
 					continue;
 				}
@@ -393,7 +392,7 @@ export class EVMProver {
 						sub.slot = ctx.slot;
 						sub.stack = [arg];
 						cmd.pos = 0;
-						await this.evalCommand(cmd, sub);
+						await this.evalCommand(cmd, sub, outputs);
 						if (flags & (sub.exitCode ? BIT_STOP_ON_FAILURE : BIT_STOP_ON_SUCCESS)) break;
 					}
 					if (flags & BIT_ACQUIRE_STATE) {

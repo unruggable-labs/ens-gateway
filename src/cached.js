@@ -11,7 +11,7 @@
 const ERR = Symbol();
 
 function clock() {
-	return Math.ceil(performance.now());
+	return performance.now();
 }
 
 export class CachedValue {
@@ -24,11 +24,12 @@ export class CachedValue {
 		this.clear();
 	}
 	clear() {
+		// this also clears any pending results
 		this.#value = undefined;
 	}
-	set(value) {		
+	set(value) {
 		this.#value = Promise.resolve(value);
-		this.#exp = clock() + this.ms_ok;
+		this.#exp = clock() + this.ms_ok; // start cooldown
 	}
 	get value() {
 		return this.#value;

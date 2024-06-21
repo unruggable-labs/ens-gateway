@@ -36,16 +36,13 @@ library EVMFetcher {
 	function addShort(EVMRequest memory r, uint16 i) internal pure returns (EVMRequest memory) {
 		return r.addByte(uint8(i >> 8)).addByte(uint8(i));
 	}
-
 	function addInput(EVMRequest memory r, bytes memory v) internal pure returns (uint8 i) {
 		bytes[] memory m = r.inputs;
-		uint256 n = m.length + 1;
-		if (n > MAX_INPUTS) revert RequestOverflow();
-		assembly {
-			mstore(m, n) 
-			mstore(add(m, shl(5, n)), v)
-			i := sub(n, 1)
-		}
+		uint256 n = m.length;
+		if (n >= MAX_INPUTS) revert RequestOverflow();
+		assembly { mstore(m, add(n, 1)) }
+		m[n] = v;
+		return uint8(n);
 	}
 
 	function encode(EVMRequest memory r) internal pure returns (bytes memory) {
