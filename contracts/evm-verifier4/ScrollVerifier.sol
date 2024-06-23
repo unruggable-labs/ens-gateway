@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "./ProofUtils.sol";
+//import "./ProofUtils.sol";
 import {EVMRequest} from "./EVMProtocol.sol";
 import {IEVMVerifier} from "./IEVMVerifier.sol";
 import {EVMProver, ProofSequence} from "./EVMProver.sol";
@@ -20,7 +20,7 @@ interface IScrollChainCommitmentVerifier {
 contract ScrollVerifier is IEVMVerifier {
 
 	// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_proof.go#L13
-	bytes32 constant MAGIC = keccak256("THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI");
+	//bytes32 constant MAGIC = keccak256("THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI");
 	uint256 constant INDEX_STEP = 16;
 
 	IScrollChainCommitmentVerifier immutable _oracle;
@@ -50,14 +50,11 @@ contract ScrollVerifier is IEVMVerifier {
 	}
 
 	function proveStorageValue(bytes32 storageRoot, uint256 slot, bytes[] memory proof) internal view returns (uint256) {
-		return uint256(ZkTrieHelper.proveStorageValue(_oracle.poseidon(), MAGIC, storageRoot, slot, proof));
+		return uint256(ZkTrieHelper.proveStorageValue(_oracle.poseidon(), storageRoot, slot, proof));
 	}
 
 	function proveAccountState(bytes32 stateRoot, address target, bytes[] memory proof) internal view returns (bytes32) {
-		(bytes32 storageRoot, bytes32 codeHash) = ZkTrieHelper.proveAccountState(_oracle.poseidon(), MAGIC, stateRoot, target, proof);
-		if (storageRoot == 0 && codeHash == 0) return NOT_A_CONTRACT;
-		if (codeHash == NULL_CODE_HASH) return NOT_A_CONTRACT;
-		return storageRoot;
+		return ZkTrieHelper.proveAccountState(_oracle.poseidon(), stateRoot, target, proof);
 	}
 
 }

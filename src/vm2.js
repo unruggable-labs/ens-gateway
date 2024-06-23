@@ -214,7 +214,7 @@ export class EVMProver {
 	}
 	async getStorage(target, slot) {
 		try {
-			if (await this.cache.cachedValue(target) === true) {
+			if (await this.cache.cachedValue(target) === false) {
 				this.log?.('getStorage(impossible)', target, slot);
 				return ethers.ZeroHash;
 			}
@@ -269,7 +269,7 @@ export class EVMProver {
 		}));
 		return {
 			proofs: refs.map(x => x.proof),
-			order
+			order: Uint8Array.from(order)
 		};
 	}
 	async evalDecoded(ops, inputs) {
@@ -291,9 +291,10 @@ export class EVMProver {
 					console.log('DEBUG', ethers.toUtf8String(reader.readInput()), {
 						target: ctx.target,
 						slot: ctx.slot,
-						return: ctx.returnValue,
+						exitCode: ctx.exitCode,
 						stack: await Promise.all(ctx.stack.map(unwrap)),
-						outputs: await Promise.all(ctx.outputs)
+						outputs: await Promise.all(ctx.outputs),
+						needs: ctx.needs
 					});
 					break;
 				}

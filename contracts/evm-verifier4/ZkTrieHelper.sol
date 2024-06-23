@@ -10,47 +10,44 @@ pragma solidity ^0.8.0;
 
 error InvalidProof();
 
-//import "forge-std/console2.sol";
+import "forge-std/console2.sol";
 
 library ZkTrieHelper {
+	
+	// 20240622
+	// we no longer care (verify or require) about the magic bytes, as it doesn't do anything
+	// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_proof.go#L13
+	//bytes32 constant MAGIC = keccak256("THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI");
 
-	function proveAccountState(address hasher, bytes32 magic, bytes32 stateRoot, address account, bytes[] memory proof) internal view returns (bytes32 storageRoot, bytes32 codeHash) {
-		checkProof(magic, proof);
+	function proveAccountState(address hasher, bytes32 stateRoot, address account, bytes[] memory proof) internal view returns (bytes32 storageRoot) {
 		//bytes32 raw = bytes32(bytes20(account)); 
 		bytes32 key = poseidonHash1(hasher, bytes32(bytes20(account))); // left aligned
-		bytes32 leafHash = walkTree(hasher, key, proof, stateRoot);
-		bytes memory leaf = proof[proof.length-2];
-		if (uint8(leaf[0]) == 4) {
-			if (!isValidLeaf(leaf, 230, bytes32(bytes20(account)), key, 0x05080000)) revert InvalidProof();
-			// REUSING VARIABLE #1
-			assembly { magic := mload(add(leaf, 69)) } // nonce||codesize||0
-			// REUSING VARIABLE #2
-			assembly { stateRoot := mload(add(leaf, 101)) } // balance
-			assembly { storageRoot := mload(add(leaf, 133)) }
-			assembly { codeHash := mload(add(leaf, 165)) }
-			bytes32 h = poseidonHash2(hasher, storageRoot, poseidonHash1(hasher, codeHash), 1280);
-			h = poseidonHash2(hasher, poseidonHash2(hasher, magic, bytes32(stateRoot), 1280), h, 1280);
-			// REUSING VARIABLE #3
-			assembly { magic := mload(add(leaf, 197)) }
-			h = poseidonHash2(hasher, h, magic, 1280);
-			h = poseidonHash2(hasher, key, h, 4);
-			if (leafHash != h) revert InvalidProof(); // InvalidAccountLeafNodeHash
-		} else if (uint8(leaf[0]) == 5) {
-			if (leaf.length != 1) revert InvalidProof();
-		} else {
-			revert InvalidProof(); // InvalidAccountLeafNodeType
-		}
+		(bytes32 leafHash, bytes memory leaf) = walkTree(hasher, key, proof, stateRoot);
+		// HOW DO I TELL THIS DOESNT EXIST?
+		if (!isValidLeaf(leaf, 230, bytes32(bytes20(account)), key, 0x05080000)) revert InvalidProof();
+		// REUSING VARIABLE #1
+		bytes32 temp;
+		assembly { temp := mload(add(leaf, 69)) } // nonce||codesize||0
+		// REUSING VARIABLE #2
+		assembly { stateRoot := mload(add(leaf, 101)) } // balance
+		assembly { storageRoot := mload(add(leaf, 133)) }
+		bytes32 codeHash;
+		assembly { codeHash := mload(add(leaf, 165)) }
+		bytes32 h = poseidonHash2(hasher, storageRoot, poseidonHash1(hasher, codeHash), 1280);
+		h = poseidonHash2(hasher, poseidonHash2(hasher, temp, bytes32(stateRoot), 1280), h, 1280);
+		// REUSING VARIABLE #3
+		assembly { temp := mload(add(leaf, 197)) }
+		h = poseidonHash2(hasher, h, temp, 1280);
+		h = poseidonHash2(hasher, key, h, 4);
+		if (leafHash != h) revert InvalidProof(); // InvalidAccountLeafNodeHash
+		if (codeHash == keccak256('')) storageRoot = 0; // i think this is implied?
 	}
 
-	function proveStorageValue(address hasher, bytes32 magic, bytes32 storageRoot, uint256 slot, bytes[] memory proof) internal view returns (bytes32 value) {
-		checkProof(magic, proof);
+	function proveStorageValue(address hasher, bytes32 storageRoot, uint256 slot, bytes[] memory proof) internal view returns (bytes32 value) {
 		bytes32 key = poseidonHash1(hasher, bytes32(slot));
-		bytes32 leafHash = walkTree(hasher, key, proof, storageRoot);
-		bytes memory leaf = proof[proof.length-2];
+		(bytes32 leafHash, bytes memory leaf) = walkTree(hasher, key, proof, storageRoot);
 		uint256 nodeType = uint8(leaf[0]);
 		if (nodeType == 4) {
-			// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_proof.go#L62
-			// "notice even we found a leaf whose entry didn't match the expected k, we still include it as the proof of absence"
 			if (!isValidLeaf(leaf, 102, bytes32(slot), key, 0x01010000)) revert InvalidProof();
 			assembly { value := mload(add(leaf, 69)) }
 			bytes32 h = poseidonHash2(hasher, key, poseidonHash1(hasher, value), 4);
@@ -59,12 +56,10 @@ library ZkTrieHelper {
 			if (leaf.length != 1) revert InvalidProof();
 			if (leafHash != 0) revert InvalidProof(); // InvalidStorageEmptyLeafNodeHash
 			return 0;
-		} else {
-			revert InvalidProof(); // InvalidStorageLeafNodeType
 		}
 	}
 
-	function isValidLeaf(bytes memory leaf, uint256 len, bytes32 raw, bytes32 key, bytes4 flag) internal pure returns (bool){
+	function isValidLeaf(bytes memory leaf, uint256 len, bytes32 raw, bytes32 key, bytes4 flag) internal pure returns (bool) {
 		if (leaf.length != len) return false;
 		bytes32 temp;
 		assembly { temp := mload(add(leaf, 33)) }
@@ -76,20 +71,22 @@ library ZkTrieHelper {
 		return temp == raw; // InvalidKeyPreimage
 	}
 
-	function checkProof(bytes32 magic, bytes[] memory m) internal pure {
-		// root leaf data magic
-		if (m.length < 4 || m.length >= 249) revert InvalidProof(); 
-		// this seems wrong lol
-		if (keccak256(m[m.length-1]) != magic) revert InvalidProof();
-	}
-
-	function walkTree(address hasher, bytes32 key, bytes[] memory proof, bytes32 rootHash) internal view returns (bytes32 expectedHash) {
-		uint256 n = proof.length - 2;
-		for (uint256 i = 0; i < n; ++i) {
-			bytes memory v = proof[i];
-			if (v.length != 65) revert InvalidProof();
+	function walkTree(address hasher, bytes32 key, bytes[] memory proof, bytes32 rootHash) internal view returns (bytes32 expectedHash, bytes memory v) {
+		expectedHash = rootHash;
+		bool done;
+		console2.log("[WALK PROOF] %s", proof.length);
+		for (uint256 i; ; i++) {
+			if (i == proof.length) revert InvalidProof();
+			v = proof[i];
+			bool left = uint256(key >> i) & 1 == 0;
 			uint256 nodeType = uint8(v[0]);
-			if (nodeType < 6 || nodeType > 9) revert InvalidProof(); // InvalidBranchNodeType
+			console2.log("[%s] %s %s", i, nodeType, left ? "L" : "R");
+			if (done) {
+				if (nodeType == 4) break; // || nodeType == 5
+				revert InvalidProof(); // expected leaf
+			} else if (nodeType < 6 || nodeType > 9 || v.length != 65) {
+				revert InvalidProof(); // expected node
+			}
 			bytes32 l;
 			bytes32 r;
 			assembly {
@@ -97,13 +94,14 @@ library ZkTrieHelper {
 				r := mload(add(v, 65))
 			}
 			bytes32 h = poseidonHash2(hasher, l, r, nodeType);
-			if (i == 0) {
-				if (h != rootHash) revert InvalidProof();
-			} else if (h != expectedHash) {
-				revert InvalidProof(); // BranchHashMismatch
+			if (h != expectedHash) revert InvalidProof();
+			expectedHash = left ? l : r;
+			// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_node.go#L30
+			// 6 XX | 7 XB | 8 BX | 9 BB
+			if (nodeType == 6 || (left ? nodeType == 7 : nodeType == 8)) {
+				console2.log("done = true");
+				done = true;
 			}
-			expectedHash = uint256(key) & 1 == 0 ? l : r;
-			key >>= 1;
 		}
 	}
 
