@@ -8,8 +8,6 @@ import {SecureMerkleTrie} from "../trie-with-nonexistance/SecureMerkleTrie.sol";
 
 library MerkleTrieHelper {
 
-	//bytes32 constant NULL_ROOT = keccack256(hex"80");
-
 	function proveStorageValue(bytes32 storageRoot, uint256 slot, bytes[] memory proof) internal pure returns (uint256) {
 		(bool exists, bytes memory v) = SecureMerkleTrie.get(abi.encodePacked(slot), proof, storageRoot);
 		return exists ? ProofUtils.uint256FromBytes(RLPReader.readBytes(v)) : 0;

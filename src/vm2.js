@@ -71,13 +71,13 @@ export class EVMCommandReader {
 		return this.ops.length - this.pos;
 	}
 	checkSize(n) {
-		if (this.pos + n > this.ops.length) throw new Error('reader overflow');		
+		if (this.pos + n > this.ops.length) throw new Error('reader overflow');
 	}
 	readByte() {
 		this.checkSize(1);
 		return this.ops[this.pos++];
 	}
-	readShort() {		
+	readShort() {
 		return (this.readByte() << 8) | this.readByte();
 	}
 	readBytes() {
@@ -99,8 +99,14 @@ export class EVMCommand {
 		this.inputs = [];
 	}
 	addByte(x) {
-		if ((x & 255) !== x) throw new Error(`expected byte: ${x}`);
+		if ((x & 0xFF) !== x) throw new Error(`expected byte: ${x}`);
 		this.ops.push(x);
+		return this;
+	}
+	addShort(x) {
+		//return this.addByte(x >> 8).addByte(x & 0xFF);
+		if ((x & 0xFFFF) !== x) throw new Error(`expected short: ${x}`);
+		this.ops.push(x >> 8, x & 0xFF);
 		return this;
 	}
 	addInputStr(s) { return this.addInputBytes(ethers.toUtf8Bytes(s)); }
@@ -147,7 +153,7 @@ export class EVMCommand {
 	concat(n) { return this.addByte(OP_CONCAT).addByte(n); }
 	keccak() { return this.addByte(OP_KECCAK); }
 	follow() { return this.addByte(OP_SLOT_FOLLOW); }
-	slice(x, n) { this.addByte(OP_SLICE).addByte(x).addByte(n); }
+	slice(x, n) { this.addByte(OP_SLICE).addShort(x).addShort(n); }
 		
 	begin() { return new EVMCommand(this); }
 	end() {
@@ -205,7 +211,7 @@ export class EVMProver {
 		this.provider = provider;
 		this.block = block;
 		this.cache = cache ?? new CachedMap();
-		this.log = console.log;
+		this.log = undefined; // console.log
 	}
 	checkSize(size) {
 		const maxBytes = 1000;
@@ -215,14 +221,14 @@ export class EVMProver {
 	async getStorage(target, slot) {
 		try {
 			if (await this.cache.cachedValue(target) === false) {
-				this.log?.('getStorage(impossible)', target, slot);
+				this.log?.(`getStorage(${target}) <skipped>`);
 				return ethers.ZeroHash;
 			}
 		} catch (err) {
 		}
 		return this.cache.get(`${target}:${slot}`, async () => {
-			this.log?.('getStorage', target, slot);
 			let value = await this.provider.getStorage(target, slot, this.block)
+			this.log?.(`getStorage(${target}, ${ethers.toBeHex(slot, 32)}) = ${value}`);
 			if (value !== ethers.ZeroHash) {
 				this.cache.set(target, true);
 			}
@@ -230,10 +236,11 @@ export class EVMProver {
 		});
 	}
 	async isContract(target) {
-		return this.cache.get(target, async a => {
-			this.log?.('getCode', a);
-			let code = await this.provider.getCode(a, this.block);
-			return code.length > 2;
+		return this.cache.get(target, async target => {
+			let code = await this.provider.getCode(target, this.block);
+			let is = code.length > 2;
+			this.log?.(`isContract(${target}) = ${is}`);
+			return is;
 		});
 	}
 	async prove(needs) {

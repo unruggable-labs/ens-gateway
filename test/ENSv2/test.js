@@ -44,14 +44,14 @@ await foundry.confirm(resolver_raffy.setText(ethers.namehash('sub.raffy.eth'), '
 
 
 let prover = await EVMProver.latest(foundry.provider);
-
+prover.log = console.log;
 
 async function resolve(name) {
 	let req = new EVMRequest(3);
 	req.push(storage.target).target(); // use storage contract
-	req.push(0).setOutput(0); // start at root
+	req.push(0).setOutput(0); // start at root (not actually needed)
 	name.split('.').forEach((_, i, v) => req.push(ethers.namehash(v.slice(i).join('.'))));
-	req.push(0);
+	req.push(0); // add namehash for root
 	req.offset(0) // _nodes mapping
 	req.begin()
 		.pushOutput(0) // registry (as uint256)
@@ -64,7 +64,7 @@ async function resolve(name) {
 		.requireNonzero() // require registry
 		.setOutput(0) // save it
 	.end().eval({failure: true}) // loop until we get a failure
-	req.pushOutput(1).target() // set target to resolver
+	req.pushOutput(1).requireNonzero().target() // set target to resolver
 		.offset(0) // _texts mapping
 		.push(ethers.namehash(name)).follow().pushStr('name').follow() // _texts[node][key]
 		.readBytes().setOutput(2); // read text(name) store into output	
@@ -75,15 +75,22 @@ async function resolve(name) {
 	console.log(result);
 	let values = await result.values();
 	console.log({
-		registry: ethers.AbiCoder.defaultAbiCoder().decode(['address'], values[0]),
-		resolver: ethers.AbiCoder.defaultAbiCoder().decode(['address'], values[1])
+		registry: ethers.AbiCoder.defaultAbiCoder().decode(['address'], values[0])[0],
 	});
-	if (!result.exitCode) {
-		console.log({text: ethers.toUtf8String(values[2])});
+	if (result.exitCode) {
+		console.log(`<doesn't exist>`);
+	} else {
+		console.log(values);
+		console.log({
+			resolver: ethers.AbiCoder.defaultAbiCoder().decode(['address'], values[1])[0],
+			text: ethers.toUtf8String(values[2])
+		});
 	}
 }
 
-await resolve('raffy.eth');
-await resolve('sub.raffy.eth');
+await resolve('raffy.eth'); // raffy resolver
+await resolve('sub.raffy.eth'); // raffy resolver (-1)
+await resolve('chonk.eth'); // eth resolver
+await resolve('does-not-exist'); // no resolver
 
 foundry.shutdown();

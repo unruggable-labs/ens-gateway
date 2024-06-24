@@ -8,16 +8,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {NOT_A_CONTRACT} from "./ProofUtils.sol";
+
 error InvalidProof();
 
-import "forge-std/console2.sol";
+//import "forge-std/console2.sol";
 
 library ZkTrieHelper {
 	
 	// 20240622
 	// we no longer care (verify or require) about the magic bytes, as it doesn't do anything
 	// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_proof.go#L13
-	//bytes32 constant MAGIC = keccak256("THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI");
+	// bytes32 constant MAGIC = keccak256("THIS IS SOME MAGIC BYTES FOR SMT m1rRXgP2xpDI");
 
 	function proveAccountState(address hasher, bytes32 stateRoot, address account, bytes[] memory proof) internal view returns (bytes32 storageRoot) {
 		//bytes32 raw = bytes32(bytes20(account)); 
@@ -40,7 +42,7 @@ library ZkTrieHelper {
 		h = poseidonHash2(hasher, h, temp, 1280);
 		h = poseidonHash2(hasher, key, h, 4);
 		if (leafHash != h) revert InvalidProof(); // InvalidAccountLeafNodeHash
-		if (codeHash == keccak256('')) storageRoot = 0; // i think this is implied?
+		if (codeHash == keccak256('')) storageRoot = NOT_A_CONTRACT;
 	}
 
 	function proveStorageValue(address hasher, bytes32 storageRoot, uint256 slot, bytes[] memory proof) internal view returns (bytes32 value) {
@@ -64,7 +66,7 @@ library ZkTrieHelper {
 		bytes32 temp;
 		assembly { temp := mload(add(leaf, 33)) }
 		if (temp != key) return false; // KeyMismatch
-		assembly { temp := mload(add(leaf, 65)) } 
+		assembly { temp := mload(add(leaf, 65)) }
 		if (bytes4(temp) != flag) return false; // InvalidCompressedFlag
 		if (uint8(leaf[len - 33]) != 32) return false; // InvalidKeyPreimageLength	
 		assembly { temp := mload(add(leaf, len)) }
@@ -74,13 +76,13 @@ library ZkTrieHelper {
 	function walkTree(address hasher, bytes32 key, bytes[] memory proof, bytes32 rootHash) internal view returns (bytes32 expectedHash, bytes memory v) {
 		expectedHash = rootHash;
 		bool done;
-		console2.log("[WALK PROOF] %s", proof.length);
+		//console2.log("[WALK PROOF] %s", proof.length);
 		for (uint256 i; ; i++) {
 			if (i == proof.length) revert InvalidProof();
 			v = proof[i];
 			bool left = uint256(key >> i) & 1 == 0;
 			uint256 nodeType = uint8(v[0]);
-			console2.log("[%s] %s %s", i, nodeType, left ? "L" : "R");
+			//console2.log("[%s] %s %s", i, nodeType, left ? "L" : "R");
 			if (done) {
 				if (nodeType == 4) break; // || nodeType == 5
 				revert InvalidProof(); // expected leaf
@@ -99,7 +101,7 @@ library ZkTrieHelper {
 			// https://github.com/scroll-tech/zktrie/blob/23181f209e94137f74337b150179aeb80c72e7c8/trie/zk_trie_node.go#L30
 			// 6 XX | 7 XB | 8 BX | 9 BB
 			if (nodeType == 6 || (left ? nodeType == 7 : nodeType == 8)) {
-				console2.log("done = true");
+				//console2.log("done = true");
 				done = true;
 			}
 		}
